@@ -103,9 +103,13 @@ export function evaluateSpot(spot, conditions, tides = null) {
   let tideNote;
   if (tides && tides.source !== "none") {
     tideNote = tides.summary;
-    if (tides.status === "bad") scoreAdjust -= 25;
-    else if (tides.status === "marginal") scoreAdjust -= 10;
-    notes.push(`Tide (${tides.source}): ${tides.summary}`);
+    if (tides.status === "bad") {
+      scoreAdjust -= 25;
+      notes.push("Tide level is a poor match for this spot's tide preference.");
+    } else if (tides.status === "marginal") {
+      scoreAdjust -= 10;
+      notes.push("Tide is marginal for this spot's tide preference.");
+    }
   }
 
   const combinedNotes = [conditions.spotNotes, local].filter(Boolean).join(" ");
@@ -121,9 +125,7 @@ export function evaluateSpot(spot, conditions, tides = null) {
       scoreAdjust -= 22;
       notes.push(tideLaunch.tideLaunchNote);
     } else {
-      notes.push(
-        `Inside your tide launch window (${spot.tideWindowHours ?? 3}h around ${spot.tideAccessRule === "within_low" ? "low" : "high"} tide).`
-      );
+      notes.push("Inside your tide launch window for this spot.");
     }
   }
 

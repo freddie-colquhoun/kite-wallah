@@ -1004,13 +1004,42 @@ textarea:focus {
 
 .result-notes {
   margin: 0 0 var(--space-md);
-  padding-left: 1rem;
+  padding: 0;
+  list-style: none;
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
-.result-notes li {
-  margin-bottom: 0.2rem;
+.result-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: 0.35rem;
+}
+
+.result-note-icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.result-note--good .result-note-icon {
+  color: var(--good);
+}
+
+.result-note--bad .result-note-icon {
+  color: var(--bad);
+}
+
+.result-note--neutral .result-note-icon {
+  color: var(--text-muted);
+}
+
+.result-note-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .result-empty {

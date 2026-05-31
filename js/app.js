@@ -39,6 +39,7 @@ import { windArrowSvg, windBlowToDeg } from "./wind-arrow.js";
 import { getTomorrowDate } from "./planner.js";
 import { formatNum, formatKt } from "./format.js";
 import { bootstrapData } from "./data-store.js";
+import { renderResultNotesHtml } from "./result-factors.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
 /** @typedef {import('./storage.js').AppState} AppState */
@@ -387,9 +388,13 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
       ? `<p class="launch-warning">Launch not advised (${conditions.windDirection} at ${escapeHtml(spot?.name ?? "spot")})</p>`
       : "";
 
-  const notesHtml = suitability.notes.length
-    ? `<ul class="result-notes">${suitability.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
-    : "";
+  const tides = getSpotsState().lastTides;
+  const notesHtml = renderResultNotesHtml(suitability.notes, escapeHtml, {
+    compact: compactResult,
+    tideSummary: tides?.summary ?? "",
+    tideLaunchNote: spotEval?.tideLaunchNote ?? null,
+    launchWarnShown: Boolean(launchWarn),
+  });
 
   const calCta =
     cal.confidence === "none" && conditions.windSpeed <= 16
