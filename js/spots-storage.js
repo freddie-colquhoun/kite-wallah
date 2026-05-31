@@ -82,7 +82,16 @@ export function loadSpots() {
 export function saveSpots(spots) {
   memorySpots = spots;
   localStorage.setItem(SPOTS_KEY, JSON.stringify(spots));
-  window.__schedulePersist?.();
+  if (!window.__cloudWriteBlocked) window.__schedulePersist?.();
+}
+
+/** Sync browser cache after a successful cloud load (does not upload). */
+export function persistSpotsLocalCache() {
+  if (memorySpots) localStorage.setItem(SPOTS_KEY, JSON.stringify(memorySpots));
+}
+
+export function persistSettingsLocalCache() {
+  if (memorySettings) localStorage.setItem(SETTINGS_KEY, JSON.stringify(memorySettings));
 }
 
 /** @returns {AppSettings} */
@@ -95,7 +104,7 @@ export function loadSettings() {
 export function saveSettings(settings) {
   memorySettings = settings;
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  window.__schedulePersist?.();
+  if (!window.__cloudWriteBlocked) window.__schedulePersist?.();
 }
 
 /** @param {Partial<KiteSpot>} data */

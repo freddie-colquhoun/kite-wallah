@@ -4,8 +4,21 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CLOUD_CONFIG } from "./config.js";
-import { readLocalState, loadState, installState, stripPhotosFromState } from "./storage.js";
-import { readLocalSpots, readLocalSettings, installSpots, installSettings } from "./spots-storage.js";
+import {
+  readLocalState,
+  loadState,
+  installState,
+  stripPhotosFromState,
+  persistLocalCacheFromMemory,
+} from "./storage.js";
+import {
+  readLocalSpots,
+  readLocalSettings,
+  installSpots,
+  installSettings,
+  persistSpotsLocalCache,
+  persistSettingsLocalCache,
+} from "./spots-storage.js";
 
 const CREW_ROW_ID = "crew";
 const PERSIST_DEBOUNCE_MS = 700;
@@ -19,8 +32,13 @@ let cloudConfig = null;
 /** @type {'local'|'cloud'} */
 let mode = "local";
 
+/** @type {'none'|'load_failed'|'save_failed'|'offline_copy'} */
+let cloudIssue = "none";
+
 let persistTimer = null;
 let remoteVersion = 0;
+/** @type {Error|null} */
+let lastFetchError = null;
 
 /** @returns {Promise<typeof cloudConfig>} */
 export async function getCloudConfig() {
@@ -43,8 +61,27 @@ export function getDataMode() {
   return mode;
 }
 
+export function getCloudIssue() {
+  return cloudIssue;
+}
+
+function setCloudWriteBlocked(blocked) {
+  window.__cloudWriteBlocked = blocked;
+}
+
+function persistAllLocalCache() {
+  persistLocalCacheFromMemory();
+  persistSpotsLocalCache();
+  persistSettingsLocalCache();
+}
+
 /**
- * @returns {Promise<{ ok: boolean, state?: import('./storage.js').AppState }>}
+ * @returns {Promise<{
+ *   ok: boolean,
+ *   state?: import('./storage.js').AppState,
+ *   cloudMode?: boolean,
+ *   cloudIssue?: string,
+ * }>}
  */
 export async function bootstrapData() {
   const config = await getCloudConfig();
@@ -52,44 +89,128 @@ export async function bootstrapData() {
   const localSpots = readLocalSpots();
   const localSettings = readLocalSettings();
 
+  cloudIssue = "none";
+  hideCloudAlert();
+
   if (!config) {
     installState(localState);
     installSpots(localSpots);
     installSettings(localSettings);
     mode = "local";
+    setCloudWriteBlocked(false);
     window.__schedulePersist = schedulePersist;
     setSyncStatus("Saved on this device only");
-    return { ok: true, state: loadState() };
+    return { ok: true, state: loadState(), cloudMode: false, cloudIssue: "none" };
   }
 
   supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
   mode = "cloud";
+  setCloudWriteBlocked(false);
 
   const remote = await fetchRemoteSnapshot();
+
+  if (lastFetchError) {
+    installState(localState);
+    installSpots(localSpots);
+    installSettings(localSettings);
+    setCloudWriteBlocked(true);
+    cloudIssue = "load_failed";
+    setSyncStatus("Could not reach shared data");
+    showCloudAlert("load_failed", lastFetchError);
+    window.__schedulePersist = schedulePersist;
+    wireCloudRecovery();
+    return { ok: true, state: loadState(), cloudMode: true, cloudIssue };
+  }
+
   if (remote?.payload && hasPayloadData(remote.payload)) {
     applySnapshot(remote.payload);
     remoteVersion = remote.updatedAtMs;
+    persistAllLocalCache();
     setSyncStatus("Shared data (everyone)");
-  } else if (hasLocalData(localState, localSpots)) {
+    window.__schedulePersist = schedulePersist;
+    subscribeRemoteChanges();
+    wireCloudRecovery();
+    return { ok: true, state: loadState(), cloudMode: true, cloudIssue: "none" };
+  }
+
+  if (hasLocalData(localState, localSpots)) {
     applySnapshot({
       version: 1,
       state: stripPhotosFromState(localState),
       spots: localSpots,
       settings: localSettings,
     });
-    await pushSnapshotNow();
-    setSyncStatus("Uploaded local data to shared storage");
+    const saved = await pushSnapshotNow();
+    if (!saved) {
+      cloudIssue = "save_failed";
+      setCloudWriteBlocked(true);
+      showCloudAlert("save_failed");
+    } else {
+      persistAllLocalCache();
+      setSyncStatus("Uploaded local data to shared storage");
+    }
   } else {
     installState(localState);
     installSpots(localSpots);
     installSettings(localSettings);
-    await pushSnapshotNow();
-    setSyncStatus("Shared data (everyone)");
+    const saved = await pushSnapshotNow();
+    if (!saved) {
+      cloudIssue = "save_failed";
+      setCloudWriteBlocked(true);
+      showCloudAlert("save_failed");
+    } else {
+      persistAllLocalCache();
+      setSyncStatus("Shared data (everyone)");
+    }
   }
 
   window.__schedulePersist = schedulePersist;
   subscribeRemoteChanges();
-  return { ok: true, state: loadState() };
+  wireCloudRecovery();
+  return { ok: true, state: loadState(), cloudMode: true, cloudIssue };
+}
+
+/** Try to load shared data again (e.g. after Retry button). */
+export async function retryCloudSync() {
+  if (!cloudConfig || !supabase) return false;
+
+  setSyncStatus("Connecting to shared data…");
+  lastFetchError = null;
+  const remote = await fetchRemoteSnapshot();
+
+  if (lastFetchError) {
+    cloudIssue = "load_failed";
+    setCloudWriteBlocked(true);
+    setSyncStatus("Could not reach shared data");
+    showCloudAlert("load_failed", lastFetchError);
+    return false;
+  }
+
+  setCloudWriteBlocked(false);
+  cloudIssue = "none";
+  hideCloudAlert();
+
+  if (remote?.payload && hasPayloadData(remote.payload)) {
+    applySnapshot(remote.payload);
+    remoteVersion = remote.updatedAtMs;
+  }
+
+  persistAllLocalCache();
+  setSyncStatus("Shared data (everyone)");
+  window.dispatchEvent(new CustomEvent("crew-data-updated"));
+  return true;
+}
+
+let recoveryWired = false;
+
+function wireCloudRecovery() {
+  if (recoveryWired || !cloudConfig) return;
+  recoveryWired = true;
+  window.addEventListener("online", () => {
+    if (cloudIssue === "load_failed" || cloudIssue === "save_failed") {
+      void retryCloudSync();
+    }
+  });
 }
 
 function hasPayloadData(/** @type {object} */ payload) {
@@ -125,14 +246,15 @@ function buildSnapshot() {
 /** @returns {Promise<{ payload: object, updatedAtMs: number }|null>} */
 async function fetchRemoteSnapshot() {
   if (!supabase) return null;
+  lastFetchError = null;
   const { data, error } = await supabase
     .from("crew_state")
     .select("payload, updated_at")
     .eq("id", CREW_ROW_ID)
     .maybeSingle();
   if (error) {
+    lastFetchError = error;
     console.warn("crew_state fetch", error);
-    setSyncStatus("Could not load shared data — check Supabase policies");
     return null;
   }
   if (!data) return null;
@@ -142,8 +264,10 @@ async function fetchRemoteSnapshot() {
   };
 }
 
+/** @returns {Promise<boolean>} */
 async function pushSnapshotNow() {
-  if (!supabase || mode !== "cloud") return;
+  if (!supabase || mode !== "cloud") return false;
+  if (window.__cloudWriteBlocked) return false;
   setSyncStatus("Saving…");
   const payload = buildSnapshot();
   const { error } = await supabase.from("crew_state").upsert({
@@ -153,16 +277,24 @@ async function pushSnapshotNow() {
   });
   if (error) {
     console.warn("crew_state upsert", error);
-    setSyncStatus("Save failed — run supabase/schema-public.sql in Supabase");
-    return;
+    cloudIssue = "save_failed";
+    setCloudWriteBlocked(true);
+    setSyncStatus("Save failed");
+    showCloudAlert("save_failed", error);
+    return false;
   }
   const remote = await fetchRemoteSnapshot();
   if (remote) remoteVersion = remote.updatedAtMs;
-  setSyncStatus("Shared data (everyone)");
+  if (!lastFetchError) {
+    cloudIssue = "none";
+    hideCloudAlert();
+    setSyncStatus("Shared data (everyone)");
+  }
+  return true;
 }
 
 export function schedulePersist() {
-  if (mode !== "cloud") return;
+  if (mode !== "cloud" || window.__cloudWriteBlocked) return;
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     void pushSnapshotNow();
@@ -183,6 +315,9 @@ function subscribeRemoteChanges() {
         if (updatedAtMs <= remoteVersion) return;
         remoteVersion = updatedAtMs;
         applySnapshot(row.payload);
+        persistAllLocalCache();
+        cloudIssue = "none";
+        hideCloudAlert();
         setSyncStatus("Updated from shared data");
         window.dispatchEvent(new CustomEvent("crew-data-updated"));
       }
@@ -194,4 +329,68 @@ function subscribeRemoteChanges() {
 function setSyncStatus(text) {
   const el = document.getElementById("sync-status");
   if (el) el.textContent = text;
+}
+
+/**
+ * @param {'load_failed'|'save_failed'} kind
+ * @param {Error|{ message?: string }|null} [err]
+ */
+function showCloudAlert(kind, err = null) {
+  const el = document.getElementById("cloud-alert");
+  if (!el) return;
+
+  const detail = err?.message ? ` (${err.message})` : "";
+
+  if (kind === "load_failed") {
+    el.innerHTML = `
+      <div class="cloud-alert-inner">
+        <p class="cloud-alert-title"><strong>Could not load shared crew data</strong></p>
+        <p class="cloud-alert-text">You may be seeing an old copy saved on this device only.${detail ? ` ${escapeHtml(detail)}` : ""}</p>
+        <ol class="cloud-alert-steps">
+          <li>Check your internet connection.</li>
+          <li>In <a href="https://supabase.com/dashboard" target="_blank" rel="noopener">Supabase</a>, open <strong>SQL Editor</strong> and run the script in <code>supabase/schema-public.sql</code> (or <code>schema.sql</code>).</li>
+          <li>Click <strong>Retry</strong> below, or refresh the page.</li>
+          <li>If it still fails: clear site data for this page (browser settings), then open the link again.</li>
+        </ol>
+        <div class="cloud-alert-actions">
+          <button type="button" class="btn btn-primary btn-sm" id="cloud-retry-btn">Retry</button>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="cloud-alert-inner">
+        <p class="cloud-alert-title"><strong>Could not save to shared crew data</strong></p>
+        <p class="cloud-alert-text">Changes on this device may not reach your mates until this is fixed.${detail ? ` ${escapeHtml(detail)}` : ""}</p>
+        <ol class="cloud-alert-steps">
+          <li>Check your internet connection.</li>
+          <li>Run <code>supabase/schema-public.sql</code> in Supabase SQL Editor if you have not already.</li>
+          <li>Click <strong>Retry</strong> or refresh the page.</li>
+        </ol>
+        <div class="cloud-alert-actions">
+          <button type="button" class="btn btn-primary btn-sm" id="cloud-retry-btn">Retry</button>
+        </div>
+      </div>`;
+  }
+
+  el.classList.remove("hidden");
+  el.setAttribute("aria-hidden", "false");
+  document.getElementById("cloud-retry-btn")?.addEventListener("click", () => {
+    void retryCloudSync();
+  });
+}
+
+function hideCloudAlert() {
+  const el = document.getElementById("cloud-alert");
+  if (!el) return;
+  el.classList.add("hidden");
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = "";
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

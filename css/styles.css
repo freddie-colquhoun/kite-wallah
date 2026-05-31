@@ -109,6 +109,52 @@ textarea {
   font-size: 1.25rem;
 }
 
+.cloud-alert {
+  max-width: 920px;
+  margin: 0 auto var(--space-md);
+  padding: 0 var(--space-md);
+}
+
+.cloud-alert.hidden {
+  display: none;
+}
+
+.cloud-alert-inner {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bad-bg);
+  border: 1px solid var(--bad);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.cloud-alert-title {
+  margin: 0 0 var(--space-xs);
+}
+
+.cloud-alert-text {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-muted);
+}
+
+.cloud-alert-steps {
+  margin: 0 0 var(--space-md);
+  padding-left: 1.25rem;
+}
+
+.cloud-alert-steps li {
+  margin-bottom: 0.25rem;
+}
+
+.cloud-alert-steps code {
+  font-size: 0.8em;
+}
+
+.cloud-alert-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
 /* Header */
 .header {
   margin-bottom: var(--space-lg);

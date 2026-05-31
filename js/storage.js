@@ -239,7 +239,13 @@ function migrateLegacyStorageNoPersist() {
 export function saveState(state) {
   memoryState = stripPhotosFromState(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState));
-  window.__schedulePersist?.();
+  if (!window.__cloudWriteBlocked) window.__schedulePersist?.();
+}
+
+/** After loading shared data — keep this device’s cache in sync (does not upload). */
+export function persistLocalCacheFromMemory() {
+  if (!memoryState) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryState));
 }
 
 /** @param {AppState} state @param {string} id */
