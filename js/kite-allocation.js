@@ -1,0 +1,262 @@
+/**
+ * Assign unique kites when multiple riders share one quiver (Plan + Now).
+ */
+
+import { recommendKite } from "./engine.js";
+import { formatKt } from "./format.js";
+import { kiteDisplayTitle } from "./quiver-storage.js";
+
+/** @typedef {import('./engine.js').Conditions} Conditions */
+/** @typedef {import('./engine.js').Kite} Kite */
+/** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
+/** @typedef {ReturnType<typeof recommendKite>} KiteRecommendation */
+
+/** Minimum match % to count as a usable kite for that rider. */
+const MIN_SUITABLE_SCORE = 45;
+
+/**
+ * @typedef {Object} RiderAllocInput
+ * @property {string} profileId
+ * @property {string} name
+ * @property {Conditions} conditions
+ * @property {CalibrationEntry[]} calibration
+ * @property {boolean} [rideable]
+ */
+
+/**
+ * @typedef {Object} KiteAssignment
+ * @property {string} profileId
+ * @property {string} name
+ * @property {Kite} kite
+ * @property {number} score
+ * @property {Kite|null} soloPick
+ * @property {KiteRecommendation|null} kiteRec
+ */
+
+/**
+ * @typedef {Object} UnassignedRider
+ * @property {string} profileId
+ * @property {string} name
+ * @property {'shortage'|'no-kite'|'not-rideable'} reason
+ * @property {string} message
+ * @property {Kite|null} [soloPick]
+ */
+
+/**
+ * @typedef {Object} GroupKiteAllocation
+ * @property {KiteAssignment[]} assignments
+ * @property {UnassignedRider[]} unassigned
+ * @property {number} needRental
+ * @property {string} bannerHtml
+ */
+
+/**
+ * @param {Conditions} conditions
+ * @param {Kite[]} kites
+ * @param {CalibrationEntry[]} calibration
+ * @returns {Array<{ kite: Kite, score: number }>}
+ */
+export function scoreAllKites(conditions, kites, calibration = []) {
+  if (!kites?.length) return [];
+
+  const wind = conditions.windSpeed;
+  return kites
+    .map((kite) => {
+      const solo = recommendKite(conditions, [kite], calibration);
+      return { kite, score: solo?.score ?? 0 };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+/**
+ * @param {RiderAllocInput[]} riders
+ * @param {Kite[]} allKites
+ * @param {{ contextLabel?: string }} [opts]
+ * @returns {GroupKiteAllocation}
+ */
+export function allocateKitesForRiders(riders, allKites, opts = {}) {
+  const contextLabel = opts.contextLabel || "";
+  const rideableRiders = riders.filter((r) => r.rideable !== false);
+
+  if (!rideableRiders.length) {
+    return emptyAllocation(contextLabel);
+  }
+
+  if (!allKites?.length) {
+    return {
+      assignments: [],
+      unassigned: rideableRiders.map((r) => ({
+        profileId: r.profileId,
+        name: r.name,
+        reason: "no-kite",
+        message: "Add kites on the Quiver tab.",
+        soloPick: null,
+      })),
+      needRental: rideableRiders.length,
+      bannerHtml: renderAllocationBannerHtml(
+        { assignments: [], unassigned: rideableRiders, needRental: rideableRiders.length },
+        contextLabel
+      ),
+    };
+  }
+
+  if (rideableRiders.length === 1) {
+    const r = rideableRiders[0];
+    const kiteRec = recommendKite(r.conditions, allKites, r.calibration);
+    const assignments = kiteRec
+      ? [
+          {
+            profileId: r.profileId,
+            name: r.name,
+            kite: kiteRec.kite,
+            score: kiteRec.score,
+            soloPick: kiteRec.kite,
+            kiteRec,
+          },
+        ]
+      : [];
+    const unassigned = kiteRec
+      ? []
+      : [
+          {
+            profileId: r.profileId,
+            name: r.name,
+            reason: /** @type {'no-kite'} */ ("no-kite"),
+            message: "No kite in the quiver fits this wind.",
+            soloPick: null,
+          },
+        ];
+    const result = {
+      assignments,
+      unassigned,
+      needRental: 0,
+      bannerHtml: "",
+    };
+    return result;
+  }
+
+  const prefs = rideableRiders.map((r) => ({
+    ...r,
+    scored: scoreAllKites(r.conditions, allKites, r.calibration),
+    solo: recommendKite(r.conditions, allKites, r.calibration),
+  }));
+
+  prefs.sort((a, b) => {
+    const aCount = a.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE).length;
+    const bCount = b.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE).length;
+    return aCount - bCount;
+  });
+
+  const usedIds = new Set();
+  /** @type {KiteAssignment[]} */
+  const assignments = [];
+  /** @type {UnassignedRider[]} */
+  const unassigned = [];
+
+  for (const r of prefs) {
+    const suitable = r.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id));
+    const fallback = r.scored.find((s) => !usedIds.has(s.kite.id));
+    const pick = suitable[0] || fallback;
+
+    if (!pick) {
+      unassigned.push({
+        profileId: r.profileId,
+        name: r.name,
+        reason: "shortage",
+        message: `${r.name}: no kite left in the quiver — may need to rent one.`,
+        soloPick: r.solo?.kite ?? null,
+      });
+      continue;
+    }
+
+    if (pick.score < MIN_SUITABLE_SCORE) {
+      unassigned.push({
+        profileId: r.profileId,
+        name: r.name,
+        reason: "shortage",
+        message: `${r.name}: no good kite left (best unused ${pick.kite.name} is only ${pick.score}% fit). Consider renting.`,
+        soloPick: r.solo?.kite ?? null,
+      });
+      continue;
+    }
+
+    usedIds.add(pick.kite.id);
+    const kiteRec = recommendKite(r.conditions, [pick.kite], r.calibration);
+    assignments.push({
+      profileId: r.profileId,
+      name: r.name,
+      kite: pick.kite,
+      score: pick.score,
+      soloPick: r.solo?.kite ?? null,
+      kiteRec,
+    });
+  }
+
+  const needRental = unassigned.filter((u) => u.reason === "shortage").length;
+  const result = {
+    assignments,
+    unassigned,
+    needRental,
+    bannerHtml: renderAllocationBannerHtml({ assignments, unassigned, needRental }, contextLabel),
+  };
+  return result;
+}
+
+/** @param {string} contextLabel */
+function emptyAllocation(contextLabel) {
+  return {
+    assignments: [],
+    unassigned: [],
+    needRental: 0,
+    bannerHtml: "",
+  };
+}
+
+/**
+ * @param {{ assignments: KiteAssignment[], unassigned: UnassignedRider[], needRental: number }} alloc
+ * @param {string} contextLabel
+ */
+function renderAllocationBannerHtml(alloc, contextLabel) {
+  if (!alloc.assignments.length && !alloc.unassigned.length) return "";
+
+  const heading = contextLabel
+    ? `<p class="kite-allocation-context">${escapeHtml(contextLabel)}</p>`
+    : "";
+
+  const rows = alloc.assignments
+    .map((a) => {
+      const title = kiteDisplayTitle(a.kite);
+      const soloNote =
+        a.soloPick && a.soloPick.id !== a.kite.id
+          ? ` <span class="kite-allocation-solo">(solo pick was ${escapeHtml(a.soloPick.name)})</span>`
+          : "";
+      return `<li><strong>${escapeHtml(a.name)}</strong> → ${escapeHtml(title)} (${a.score}% match)${soloNote}</li>`;
+    })
+    .join("");
+
+  const warnings = alloc.unassigned
+    .map((u) => `<li class="kite-allocation-warn-item">${escapeHtml(u.message)}</li>`)
+    .join("");
+
+  const rental =
+    alloc.needRental > 0
+      ? `<p class="kite-allocation-rental"><strong>${alloc.needRental} rider${alloc.needRental > 1 ? "s" : ""} need${alloc.needRental === 1 ? "s" : ""} another kite</strong> — consider renting for the day.</p>`
+      : "";
+
+  return `<div class="kite-allocation-banner card card-slim">
+    <h3 class="kite-allocation-title">Who flies which kite</h3>
+    <p class="hint hint-tight">One kite per person — no doubling up the same kite at once.</p>
+    ${heading}
+    ${rows ? `<ul class="kite-allocation-list">${rows}</ul>` : ""}
+    ${warnings ? `<ul class="kite-allocation-warnings">${warnings}</ul>` : ""}
+    ${rental}
+  </div>`;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

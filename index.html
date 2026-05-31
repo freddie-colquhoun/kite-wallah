@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kite Wallah</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="app-loading" class="app-loading" aria-live="polite">Loading Kite Wallah…</div>
+
+    <div id="crew-login" class="crew-login hidden" aria-hidden="true" role="dialog" aria-labelledby="crew-login-title">
+      <div class="crew-login-card">
+        <h2 id="crew-login-title">Crew sign-in</h2>
+        <p class="hint">One shared login for you and your mates. Data syncs for everyone.</p>
+        <form id="crew-login-form">
+          <div class="field field-flush">
+            <label for="crew-login-email">Email</label>
+            <input type="email" id="crew-login-email" autocomplete="username" readonly />
+          </div>
+          <div class="field field-flush">
+            <label for="crew-login-password">Password</label>
+            <input type="password" id="crew-login-password" autocomplete="current-password" required />
+          </div>
+          <p id="crew-login-error" class="fetch-status hidden" role="alert"></p>
+          <button type="submit" class="btn btn-primary">Sign in</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="app">
+      <header class="header">
+        <div class="header-inner">
+          <div class="logo">
+            <span class="logo-icon" aria-hidden="true">
+              <span class="logo-emoji">🌊</span>
+              <span class="logo-emoji">🏄‍♂️</span>
+            </span>
+            <h1>Kite Wallah</h1>
+            <p id="sync-status" class="sync-status" aria-live="polite"></p>
+          </div>
+          <nav class="tabs" role="tablist">
+            <button class="tab active" data-tab="plan" role="tab" aria-selected="true">Plan</button>
+            <button class="tab" data-tab="check" role="tab" aria-selected="false">Now</button>
+            <button class="tab" data-tab="spots" role="tab" aria-selected="false">Spots</button>
+            <button class="tab" data-tab="quiver" role="tab" aria-selected="false">Quiver</button>
+            <button class="tab" data-tab="sessions" role="tab" aria-selected="false">Sessions</button>
+            <button class="tab" data-tab="riders" role="tab" aria-selected="false">Riders</button>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section id="panel-plan" class="panel active" role="tabpanel">
+          <div class="plan-layout">
+            <form id="plan-form" class="plan-setup compact-form">
+              <div class="compact-form-row compact-form-row--2">
+                <div class="field field-flush">
+                  <label>Riders</label>
+                  <div id="plan-profile-selector" class="profile-selector"></div>
+                </div>
+                <div class="field field-flush">
+                  <label for="plan-spot">Spot</label>
+                  <select id="plan-spot" required>
+                    <option value="">Select spot…</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field field-flush">
+                <label>Days</label>
+                <div class="preset-toolbar preset-toolbar--pills">
+                  <button type="button" class="preset-pill" data-plan-day-preset="tomorrow">Tomorrow</button>
+                  <button type="button" class="preset-pill" data-plan-day-preset="weekend">Weekend</button>
+                  <button type="button" class="preset-pill" data-plan-day-preset="7days">7 days</button>
+                </div>
+                <div id="plan-day-picker"></div>
+              </div>
+
+              <details class="form-more">
+                <summary>Options</summary>
+                <div class="form-more-body">
+                  <div class="field field-flush">
+                    <label for="plan-notes">Notes</label>
+                    <input type="text" id="plan-notes" placeholder="e.g. high tide only" />
+                  </div>
+                  <label class="check-inline">
+                    <input type="checkbox" id="plan-show-night" />
+                    <span>Include night hours</span>
+                  </label>
+                  <div class="field field-flush">
+                    <label for="plan-openai-key">OpenAI API key (optional)</label>
+                    <input
+                      type="password"
+                      id="plan-openai-key"
+                      placeholder="sk-… for Plan AI chat"
+                      autocomplete="off"
+                    />
+                    <p class="hint hint-tight">Stored only in this browser. Optional  ·  powers smarter Plan chat via OpenAI (you pay OpenAI, not Kite Wallah).</p>
+                  </div>
+                </div>
+              </details>
+
+              <button type="submit" class="btn btn-primary">Plan sessions</button>
+              <p id="plan-status" class="fetch-status hidden"></p>
+            </form>
+
+            <div id="plan-results" class="plan-results"></div>
+
+            <details class="collapsible-panel plan-ai-panel" id="plan-ai-panel" hidden>
+              <summary>Ask about this plan (AI)</summary>
+              <div class="collapsible-body">
+                <div id="plan-chat-messages" class="chat-messages"></div>
+                <form id="plan-chat-form" class="chat-form">
+                  <input
+                    type="text"
+                    id="plan-chat-input"
+                    placeholder="e.g. Is Saturday too gusty for me?"
+                    autocomplete="off"
+                  />
+                  <button type="submit" class="btn btn-secondary">Ask</button>
+                </form>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section id="panel-check" class="panel" role="tabpanel" hidden>
+          <div class="analyse-layout">
+            <div class="analyse-main">
+              <div class="card card-slim compact-form now-riders-card">
+                <div class="field field-flush">
+                  <label>Riders</label>
+                  <div id="profile-selector" class="profile-selector"></div>
+                </div>
+              </div>
+
+              <form id="now-adhoc-form" class="card card-slim compact-form now-adhoc-card">
+                <h2 class="now-section-title">Another location</h2>
+                <p class="hint hint-tight">Search anywhere, or enter wind manually without a saved spot.</p>
+                <div class="field field-flush">
+                  <label for="now-location-search">Search location</label>
+                  <input
+                    type="search"
+                    id="now-location-search"
+                    placeholder="e.g. Portland Harbour, Dakhla, Brighton"
+                    autocomplete="off"
+                  />
+                  <div id="now-location-results" class="search-results"></div>
+                </div>
+                <p id="now-adhoc-picked" class="now-adhoc-picked hint hidden"></p>
+                <div class="now-adhoc-toolbar">
+                  <button type="button" class="btn btn-secondary btn-sm" id="now-adhoc-clear">Clear location</button>
+                </div>
+                <p id="now-adhoc-wind-status" class="fetch-status hidden"></p>
+                <div id="now-adhoc-wind-preview" class="now-adhoc-wind-preview"></div>
+
+                <label class="check-inline wind-manual-toggle">
+                  <input type="checkbox" id="wind-manual-mode" />
+                  <span>Enter wind manually (skip live fetch)</span>
+                </label>
+
+                <div class="field-row field-row-tight field-row--4">
+                  <div class="field field-flush">
+                    <label for="wind-speed">Wind (kt)</label>
+                    <input type="number" id="wind-speed" min="0" max="60" step="1" value="18" required />
+                  </div>
+                  <div class="field field-flush">
+                    <label for="gust-speed">Gusts</label>
+                    <input type="number" id="gust-speed" min="0" max="70" step="1" placeholder="-" />
+                  </div>
+                  <div class="field field-flush">
+                    <label for="wind-direction">Dir</label>
+                    <select id="wind-direction">
+                      <option value="N">N</option>
+                      <option value="NE">NE</option>
+                      <option value="E">E</option>
+                      <option value="SE">SE</option>
+                      <option value="S">S</option>
+                      <option value="SW" selected>SW</option>
+                      <option value="W">W</option>
+                      <option value="NW">NW</option>
+                    </select>
+                  </div>
+                  <div class="field field-flush">
+                    <label for="water-type">Water</label>
+                    <select id="water-type">
+                      <option value="flat">Flat</option>
+                      <option value="choppy" selected>Choppy</option>
+                      <option value="waves">Waves</option>
+                    </select>
+                  </div>
+                </div>
+
+                <input type="hidden" id="spot-notes" value="" />
+                <div id="tide-summary-analyse" class="tide-banner hidden"></div>
+                <button type="submit" class="btn btn-primary" id="now-adhoc-submit">Check conditions</button>
+              </form>
+
+              <div id="now-adhoc-results" class="results-stack now-adhoc-results"></div>
+
+              <section id="now-spots-section" class="now-spots-section" hidden>
+                <h2 class="now-section-title">Your spots</h2>
+                <p class="hint hint-tight">Wind, tides, and launch status load automatically. Rider picks update below.</p>
+                <div id="now-spots-list" class="now-spots-list"></div>
+              </section>
+
+              <details class="collapsible-panel collapsible-minor now-action-panel">
+                <summary class="action-panel-summary">Ask advisor</summary>
+                <div class="collapsible-body">
+                  <div id="chat-messages" class="chat-messages"></div>
+                  <form id="chat-form" class="chat-form">
+                    <input type="text" id="chat-input" placeholder="e.g. Can I jump today?" autocomplete="off" />
+                    <button type="submit" class="btn btn-secondary">Ask</button>
+                  </form>
+                </div>
+              </details>
+
+              <details class="collapsible-panel collapsible-minor now-action-panel data-sources-panel">
+                <summary class="action-panel-summary">Data sources</summary>
+                <div class="collapsible-body" id="data-sources-content"></div>
+              </details>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-spots" class="panel" role="tabpanel" hidden>
+          <div class="profiles-layout">
+            <aside class="profile-sidebar card card-compact">
+              <div class="sidebar-header">
+                <h2>Spots</h2>
+                <button type="button" class="btn btn-secondary btn-sm" id="add-spot-btn">+ New</button>
+              </div>
+              <ul id="spot-nav-list" class="profile-nav-list"></ul>
+            </aside>
+            <div id="spot-editor" class="profile-editor"></div>
+          </div>
+        </section>
+
+        <section id="panel-quiver" class="panel" role="tabpanel" hidden>
+          <div id="quiver-main" class="quiver-main"></div>
+        </section>
+
+        <section id="panel-sessions" class="panel" role="tabpanel" hidden>
+          <div class="sessions-layout">
+            <div class="card card-slim sessions-picker">
+              <label for="sessions-profile-select">Rider</label>
+              <select id="sessions-profile-select"></select>
+              <p class="hint hint-tight">Log real sessions here  ·  Plan and Now use them for kite sizing and comparisons.</p>
+            </div>
+            <div id="sessions-main" class="sessions-main"></div>
+          </div>
+        </section>
+
+        <section id="panel-riders" class="panel" role="tabpanel" hidden>
+          <div class="profiles-layout">
+            <aside class="profile-sidebar card card-compact">
+              <div class="sidebar-header">
+                <h2>Riders</h2>
+                <button type="button" class="btn btn-secondary btn-sm" id="add-profile-btn">+ New</button>
+              </div>
+              <ul id="profile-nav-list" class="profile-nav-list"></ul>
+            </aside>
+            <div class="profile-editor" id="profile-editor"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <nav class="site-footer-nav" aria-label="Help">
+          <a href="pages/how-it-works.html">How it works</a>
+          <a href="pages/data-sources.html">Data &amp; limits</a>
+        </nav>
+        <p class="site-footer-note">Forecast data from Open-Meteo. Always use your own judgment on the water.</p>
+      </footer>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

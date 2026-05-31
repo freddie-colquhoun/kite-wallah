@@ -1,0 +1,227 @@
+{
+  "brands": {
+    "Duotone": {
+      "Rebel": {
+        "type": "hybrid",
+        "style": "Big air / freeride",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 35, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 32, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Evo": {
+        "type": "hybrid",
+        "style": "Freeride / freestyle",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 34, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 31, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Dice": {
+        "type": "c",
+        "style": "Freestyle / wakestyle",
+        "sizes": {
+          "7": { "minWind": 21, "idealWind": 27, "maxWind": 36, "weightRef": 75 },
+          "8": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "9": { "minWind": 16, "idealWind": 22, "maxWind": 29, "weightRef": 75 },
+          "10": { "minWind": 14, "idealWind": 19, "maxWind": 26, "weightRef": 75 },
+          "11": { "minWind": 12, "idealWind": 17, "maxWind": 23, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 15, "maxWind": 21, "weightRef": 75 }
+        }
+      },
+      "Neo": {
+        "type": "bow",
+        "style": "Wave / strapless",
+        "sizes": {
+          "7": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "8": { "minWind": 17, "idealWind": 23, "maxWind": 30, "weightRef": 75 },
+          "9": { "minWind": 14, "idealWind": 20, "maxWind": 27, "weightRef": 75 },
+          "10": { "minWind": 12, "idealWind": 17, "maxWind": 24, "weightRef": 75 },
+          "11": { "minWind": 10, "idealWind": 15, "maxWind": 21, "weightRef": 75 },
+          "12": { "minWind": 9, "idealWind": 13, "maxWind": 19, "weightRef": 75 }
+        }
+      }
+    },
+    "North": {
+      "Orbit": {
+        "type": "hybrid",
+        "style": "Big air / freeride",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 35, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 32, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Reach": {
+        "type": "bow",
+        "style": "All-round / freeride",
+        "sizes": {
+          "7": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "8": { "minWind": 17, "idealWind": 23, "maxWind": 30, "weightRef": 75 },
+          "9": { "minWind": 14, "idealWind": 20, "maxWind": 27, "weightRef": 75 },
+          "10": { "minWind": 12, "idealWind": 17, "maxWind": 24, "weightRef": 75 },
+          "11": { "minWind": 10, "idealWind": 15, "maxWind": 21, "weightRef": 75 },
+          "12": { "minWind": 9, "idealWind": 13, "maxWind": 19, "weightRef": 75 }
+        }
+      },
+      "Pulse": {
+        "type": "c",
+        "style": "Freestyle / park",
+        "sizes": {
+          "7": { "minWind": 21, "idealWind": 27, "maxWind": 36, "weightRef": 75 },
+          "8": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "9": { "minWind": 16, "idealWind": 22, "maxWind": 29, "weightRef": 75 },
+          "10": { "minWind": 14, "idealWind": 19, "maxWind": 26, "weightRef": 75 },
+          "11": { "minWind": 12, "idealWind": 17, "maxWind": 23, "weightRef": 75 }
+        }
+      }
+    },
+    "Cabrinha": {
+      "Contra": {
+        "type": "bow",
+        "style": "Light wind",
+        "sizes": {
+          "9": { "minWind": 11, "idealWind": 15, "maxWind": 21, "weightRef": 75 },
+          "11": { "minWind": 9, "idealWind": 13, "maxWind": 18, "weightRef": 75 },
+          "13": { "minWind": 8, "idealWind": 11, "maxWind": 15, "weightRef": 75 },
+          "15": { "minWind": 7, "idealWind": 10, "maxWind": 14, "weightRef": 75 }
+        }
+      },
+      "Moto": {
+        "type": "hybrid",
+        "style": "All-round",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 34, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 31, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "FX": {
+        "type": "c",
+        "style": "Freestyle",
+        "sizes": {
+          "7": { "minWind": 21, "idealWind": 27, "maxWind": 36, "weightRef": 75 },
+          "8": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "9": { "minWind": 16, "idealWind": 22, "maxWind": 29, "weightRef": 75 },
+          "10": { "minWind": 14, "idealWind": 19, "maxWind": 26, "weightRef": 75 },
+          "11": { "minWind": 12, "idealWind": 17, "maxWind": 23, "weightRef": 75 }
+        }
+      }
+    },
+    "F-One": {
+      "Bandit": {
+        "type": "hybrid",
+        "style": "Freeride / big air",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 35, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 32, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Strike": {
+        "type": "bow",
+        "style": "Wave / strapless",
+        "sizes": {
+          "7": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "8": { "minWind": 17, "idealWind": 23, "maxWind": 30, "weightRef": 75 },
+          "9": { "minWind": 14, "idealWind": 20, "maxWind": 27, "weightRef": 75 },
+          "10": { "minWind": 12, "idealWind": 17, "maxWind": 24, "weightRef": 75 },
+          "11": { "minWind": 10, "idealWind": 15, "maxWind": 21, "weightRef": 75 }
+        }
+      }
+    },
+    "Ozone": {
+      "Enduro": {
+        "type": "hybrid",
+        "style": "All-round",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 34, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 31, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Edge": {
+        "type": "c",
+        "style": "Big air / performance",
+        "sizes": {
+          "7": { "minWind": 21, "idealWind": 27, "maxWind": 36, "weightRef": 75 },
+          "8": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "9": { "minWind": 16, "idealWind": 22, "maxWind": 29, "weightRef": 75 },
+          "10": { "minWind": 14, "idealWind": 19, "maxWind": 26, "weightRef": 75 },
+          "11": { "minWind": 12, "idealWind": 17, "maxWind": 23, "weightRef": 75 }
+        }
+      }
+    },
+    "Core": {
+      "XR": {
+        "type": "hybrid",
+        "style": "Big air / freeride",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 35, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 32, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Union": {
+        "type": "bow",
+        "style": "Freeride / wave",
+        "sizes": {
+          "7": { "minWind": 19, "idealWind": 25, "maxWind": 33, "weightRef": 75 },
+          "8": { "minWind": 17, "idealWind": 23, "maxWind": 30, "weightRef": 75 },
+          "9": { "minWind": 14, "idealWind": 20, "maxWind": 27, "weightRef": 75 },
+          "10": { "minWind": 12, "idealWind": 17, "maxWind": 24, "weightRef": 75 },
+          "11": { "minWind": 10, "idealWind": 15, "maxWind": 21, "weightRef": 75 }
+        }
+      }
+    },
+    "Slingshot": {
+      "Rally": {
+        "type": "hybrid",
+        "style": "All-round",
+        "sizes": {
+          "7": { "minWind": 20, "idealWind": 26, "maxWind": 34, "weightRef": 75 },
+          "8": { "minWind": 18, "idealWind": 24, "maxWind": 31, "weightRef": 75 },
+          "9": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "10": { "minWind": 13, "idealWind": 18, "maxWind": 25, "weightRef": 75 },
+          "11": { "minWind": 11, "idealWind": 16, "maxWind": 22, "weightRef": 75 },
+          "12": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 }
+        }
+      },
+      "Ghost": {
+        "type": "bow",
+        "style": "Light wind / foiling",
+        "sizes": {
+          "4": { "minWind": 18, "idealWind": 24, "maxWind": 32, "weightRef": 75 },
+          "5": { "minWind": 15, "idealWind": 21, "maxWind": 28, "weightRef": 75 },
+          "6": { "minWind": 12, "idealWind": 17, "maxWind": 24, "weightRef": 75 },
+          "8": { "minWind": 10, "idealWind": 14, "maxWind": 20, "weightRef": 75 },
+          "10": { "minWind": 8, "idealWind": 12, "maxWind": 17, "weightRef": 75 },
+          "12": { "minWind": 7, "idealWind": 10, "maxWind": 15, "weightRef": 75 }
+        }
+      }
+    }
+  }
+}
