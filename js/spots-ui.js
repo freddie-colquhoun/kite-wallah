@@ -243,9 +243,17 @@ function wireSpotEditor(spot, onChange) {
       return;
     }
     searchTimer = setTimeout(async () => {
-      const results = await searchLocations(q);
       const el = document.getElementById("spot-search-results");
       if (!el) return;
+      el.innerHTML = `<p class="hint search-empty">Searching…</p>`;
+      let results = [];
+      try {
+        results = await searchLocations(q);
+      } catch (err) {
+        console.warn("spot search", err);
+        el.innerHTML = `<p class="hint search-empty">Search failed  ·  check connection or drag the map pin manually.</p>`;
+        return;
+      }
       if (!results.length) {
         el.innerHTML = `<p class="hint search-empty">No results  ·  try a nearby beach name or drag the map pin manually.</p>`;
         return;

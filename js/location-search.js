@@ -10,10 +10,14 @@
 
 let kitesurfCatalog = null;
 
+function getCatalogUrl() {
+  return new URL("../data/kitesurf-spots.json", import.meta.url).href;
+}
+
 async function loadKitesurfCatalog() {
   if (kitesurfCatalog) return kitesurfCatalog;
-  const res = await fetch(new URL("./data/kitesurf-spots.json", import.meta.url));
-  if (!res.ok) throw new Error("Could not load kitesurf spots catalog");
+  const res = await fetch(getCatalogUrl());
+  if (!res.ok) throw new Error(`Could not load kitesurf spots catalog (${res.status})`);
   kitesurfCatalog = await res.json();
   return kitesurfCatalog;
 }
@@ -164,8 +168,15 @@ export async function searchLocations(query) {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  const catalog = await loadKitesurfCatalog();
-  const kitesurf = searchKitesurfCatalog(trimmed, catalog);
+  /** @type {SearchResult[]} */
+  let kitesurf = [];
+  try {
+    const catalog = await loadKitesurfCatalog();
+    kitesurf = searchKitesurfCatalog(trimmed, catalog);
+  } catch (err) {
+    console.warn("Kitesurf catalog search skipped:", err);
+  }
+
   const ukBias = querySuggestsUk(trimmed);
 
   const [photon, photonUk, openMeteo] = await Promise.all([

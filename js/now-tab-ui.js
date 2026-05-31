@@ -226,7 +226,16 @@ function wireAdhocSearch(handlers) {
       return;
     }
     timer = setTimeout(async () => {
-      const results = await searchLocations(q);
+      resultsEl.innerHTML = '<p class="hint search-empty">Searching…</p>';
+      let results = [];
+      try {
+        results = await searchLocations(q);
+      } catch (err) {
+        console.warn("location search", err);
+        resultsEl.innerHTML =
+          '<p class="hint search-empty">Search failed. Check connection or try again.</p>';
+        return;
+      }
       if (!results.length) {
         resultsEl.innerHTML =
           '<p class="hint search-empty">No results. Try a beach or harbour name.</p>';
