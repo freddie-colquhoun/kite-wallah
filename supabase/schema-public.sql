@@ -1,17 +1,5 @@
--- Run once in Supabase: SQL Editor → New query → paste → Run
--- Public shared data: no sign-in (anon read/write). Anyone with the site URL can edit.
-
-create table if not exists public.crew_state (
-  id text primary key,
-  payload jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
-);
-
-insert into public.crew_state (id, payload)
-values ('crew', '{}'::jsonb)
-on conflict (id) do nothing;
-
-alter table public.crew_state enable row level security;
+-- Run this if you already ran the OLD schema (login required).
+-- Supabase → SQL Editor → paste → Run
 
 drop policy if exists "crew_select" on public.crew_state;
 drop policy if exists "crew_update" on public.crew_state;

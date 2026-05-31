@@ -7,6 +7,4 @@ export const CLOUD_CONFIG = {
   enabled: false,
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",
   supabaseAnonKey: "YOUR_ANON_PUBLIC_KEY",
-  /** Shared crew login — create this user in Supabase Auth (see DEPLOY.md). */
-  crewEmail: "crew@kite-wallah.local",
 };

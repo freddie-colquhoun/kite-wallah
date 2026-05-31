@@ -1,5 +1,5 @@
 /**
- * Shared crew data: Supabase when configured, else browser localStorage.
+ * Shared data: Supabase when configured (public read/write, no sign-in), else localStorage.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -8,13 +8,12 @@ import { readLocalState, loadState, installState, stripPhotosFromState } from ".
 import { readLocalSpots, readLocalSettings, installSpots, installSettings } from "./spots-storage.js";
 
 const CREW_ROW_ID = "crew";
-const AUTH_STORAGE_KEY = "kite-wallah-auth";
 const PERSIST_DEBOUNCE_MS = 700;
 
 /** @type {import('@supabase/supabase-js').SupabaseClient|null} */
 let supabase = null;
 
-/** @type {{ enabled: boolean, supabaseUrl: string, supabaseAnonKey: string, crewEmail: string }|null} */
+/** @type {{ enabled: boolean, supabaseUrl: string, supabaseAnonKey: string }|null} */
 let cloudConfig = null;
 
 /** @type {'local'|'cloud'} */
@@ -32,7 +31,7 @@ export async function getCloudConfig() {
     !c.supabaseUrl.includes("YOUR_PROJECT") &&
     c.supabaseUrl.startsWith("https://");
   const keyOk = c?.supabaseAnonKey && !c.supabaseAnonKey.includes("YOUR_ANON");
-  if (c?.enabled && urlOk && keyOk && c.crewEmail) {
+  if (c?.enabled && urlOk && keyOk) {
     cloudConfig = c;
     return c;
   }
@@ -45,7 +44,6 @@ export function getDataMode() {
 }
 
 /**
- * Boot app data. Shows login overlay when cloud is enabled and not signed in.
  * @returns {Promise<{ ok: boolean, state?: import('./storage.js').AppState }>}
  */
 export async function bootstrapData() {
@@ -64,23 +62,14 @@ export async function bootstrapData() {
     return { ok: true, state: loadState() };
   }
 
-  supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      storageKey: AUTH_STORAGE_KEY,
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  });
-
-  const session = await ensureCrewSession(config);
-  if (!session) return { ok: false };
-
+  supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
   mode = "cloud";
+
   const remote = await fetchRemoteSnapshot();
   if (remote?.payload && hasPayloadData(remote.payload)) {
     applySnapshot(remote.payload);
     remoteVersion = remote.updatedAtMs;
-    setSyncStatus("Synced with crew");
+    setSyncStatus("Shared data (everyone)");
   } else if (hasLocalData(localState, localSpots)) {
     applySnapshot({
       version: 1,
@@ -89,13 +78,13 @@ export async function bootstrapData() {
       settings: localSettings,
     });
     await pushSnapshotNow();
-    setSyncStatus("Uploaded your local data to the crew");
+    setSyncStatus("Uploaded local data to shared storage");
   } else {
     installState(localState);
     installSpots(localSpots);
     installSettings(localSettings);
     await pushSnapshotNow();
-    setSyncStatus("Synced with crew");
+    setSyncStatus("Shared data (everyone)");
   }
 
   window.__schedulePersist = schedulePersist;
@@ -107,8 +96,8 @@ function hasPayloadData(/** @type {object} */ payload) {
   const st = payload.state;
   const spots = payload.spots;
   return (
-    (st?.profiles?.length > 0) ||
-    (st?.quiver?.kites?.length > 0) ||
+    st?.profiles?.length > 0 ||
+    st?.quiver?.kites?.length > 0 ||
     (Array.isArray(spots) && spots.length > 0)
   );
 }
@@ -117,9 +106,7 @@ function hasLocalData(/** @type {import('./storage.js').AppState} */ state, /** 
   return state.profiles?.length > 0 || spots.length > 0;
 }
 
-/**
- * @param {object} payload
- */
+/** @param {object} payload */
 function applySnapshot(payload) {
   if (payload.state) installState(stripPhotosFromState(payload.state));
   if (Array.isArray(payload.spots)) installSpots(payload.spots);
@@ -145,6 +132,7 @@ async function fetchRemoteSnapshot() {
     .maybeSingle();
   if (error) {
     console.warn("crew_state fetch", error);
+    setSyncStatus("Could not load shared data — check Supabase policies");
     return null;
   }
   if (!data) return null;
@@ -165,12 +153,12 @@ async function pushSnapshotNow() {
   });
   if (error) {
     console.warn("crew_state upsert", error);
-    setSyncStatus("Save failed — try again");
+    setSyncStatus("Save failed — run supabase/schema-public.sql in Supabase");
     return;
   }
   const remote = await fetchRemoteSnapshot();
   if (remote) remoteVersion = remote.updatedAtMs;
-  setSyncStatus("Synced with crew");
+  setSyncStatus("Shared data (everyone)");
 }
 
 export function schedulePersist() {
@@ -179,66 +167,6 @@ export function schedulePersist() {
   persistTimer = setTimeout(() => {
     void pushSnapshotNow();
   }, PERSIST_DEBOUNCE_MS);
-}
-
-/** @param {{ crewEmail: string }} config */
-function ensureCrewSession(config) {
-  return new Promise((resolve) => {
-    void (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        hideLogin();
-        resolve(data.session);
-        return;
-      }
-      showLogin(config, resolve);
-    })();
-  });
-}
-
-/** @param {{ crewEmail: string }} config @param {(session: unknown) => void} resolve */
-function showLogin(config, resolve) {
-  const overlay = document.getElementById("crew-login");
-  const form = document.getElementById("crew-login-form");
-  const err = document.getElementById("crew-login-error");
-  const emailInput = document.getElementById("crew-login-email");
-  if (!overlay || !form) {
-    resolve(null);
-    return;
-  }
-  if (emailInput) emailInput.value = config.crewEmail;
-  overlay.classList.remove("hidden");
-  overlay.setAttribute("aria-hidden", "false");
-
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    if (err) {
-      err.classList.add("hidden");
-      err.textContent = "";
-    }
-    const password = document.getElementById("crew-login-password")?.value;
-    if (!password) return;
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: config.crewEmail,
-      password,
-    });
-    if (error) {
-      if (err) {
-        err.textContent = error.message;
-        err.classList.remove("hidden");
-      }
-      return;
-    }
-    hideLogin();
-    resolve(data.session);
-  };
-}
-
-function hideLogin() {
-  const overlay = document.getElementById("crew-login");
-  if (!overlay) return;
-  overlay.classList.add("hidden");
-  overlay.setAttribute("aria-hidden", "true");
 }
 
 function subscribeRemoteChanges() {
@@ -255,7 +183,7 @@ function subscribeRemoteChanges() {
         if (updatedAtMs <= remoteVersion) return;
         remoteVersion = updatedAtMs;
         applySnapshot(row.payload);
-        setSyncStatus("Updated from crew");
+        setSyncStatus("Updated from shared data");
         window.dispatchEvent(new CustomEvent("crew-data-updated"));
       }
     )
