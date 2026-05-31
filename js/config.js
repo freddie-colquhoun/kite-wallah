@@ -1,10 +1,9 @@
 /**
- * Cloud sync settings. Edit after creating Supabase (see DEPLOY.md).
- * The anon key is safe to commit — crew data is protected by login + RLS.
+ * Cloud sync — public shared data (no sign-in).
+ * Publishable key is safe in the frontend; do not put secret keys here.
  */
 export const CLOUD_CONFIG = {
-  enabled: false,
-  supabaseUrl: "https://YOUR_PROJECT.supabase.co",
-  supabaseAnonKey: "YOUR_ANON_PUBLIC_KEY",
-  crewEmail: "crew@kite-wallah.local",
+  enabled: true,
+  supabaseUrl: "https://dnpthipfdyzvpwvabqih.supabase.co",
+  supabaseAnonKey: "sb_publishable_5SquX_wuLX7Lwa1uGOgolg_Yj7-GcXe",
 };
