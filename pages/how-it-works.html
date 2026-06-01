@@ -49,12 +49,11 @@
               high-confidence session history favours another size in the bag.
             </li>
             <li>
-              <strong>Crew days (shared bag)</strong> — Each rider still has a solo “ideal” pick, but only
-              <strong>one physical kite each</strong>. Riders are sorted <strong>heaviest first</strong>. Each gets the
-              unused kite closest to their <strong>power target</strong> (chart size for their weight, bumped up if logs
-              say they were underpowered in similar wind). Lighter riders take what’s left, preferring smaller workable
-              sizes. If the only kite left is poor but still rideable, the card says <strong>Use from bag</strong>;
-              <strong>rent</strong> is labelled <strong>last resort</strong>, not the default.
+              <strong>Crew days (shared bag)</strong> — Each rider has a solo pick from the same
+              <code>scoreKiteForConditions()</code> engine as Plan/Now. Assignment order is <strong>weight only</strong>
+              (heaviest first; ability never changes queue position). Among kites still in the bag, each rider takes the
+              highest need-fit score that passes a <strong>safety threshold</strong> for their weight and ability (experts
+              can accept more powered-up sizes than intermediates). <strong>Rent</strong> only if no leftover kite is safe.
             </li>
             <li>
               <strong>Your sessions</strong> — Logging wind, kite size, spot, and how it felt updates comfort ranges and
@@ -263,24 +262,25 @@
             Renting mode skips allocation entirely (each rider gets an independent catalog pick).
           </li>
           <li>
-            <strong>Step A — score matrix:</strong> for each rider, score every kite in the bag (see <a href="#need-score">§10</a>).
-            Also compute <strong>solo pick</strong> = <code>recommendKite(conditions, allKites, calibration)</code> (what they would ride if alone).
+            <strong>Step A — score matrix:</strong> for each rider × kite,
+            <code>need-fit % = scoreKiteForConditions()</code> — identical to the solo engine (see <a href="#need-score">§10</a>).
+            <strong>Solo pick</strong> = highest-scoring kite in the full bag (same function as Plan day line).
           </li>
           <li>
             <strong>Step B — assign kites (one physical kite each):</strong>
             <ul>
-              <li>Sort riders by <strong>weight descending</strong> (heaviest first).</li>
-              <li>Heaviest: pick unused kite <strong>closest to power target</strong> (not “largest in bag”).</li>
-              <li>Next riders: if solo kite still free and scores ≥ 45%, keep solo; else pick among remaining kites — prefer scores ≥ 45%, else session-adequate size, else best need-fit; then closest to power target.</li>
+              <li>Sort riders by <strong>weight descending</strong> only (ties broken by name — never by ability or session count).</li>
+              <li>Heaviest: among <strong>safe</strong> unused kites, take highest need-fit; tie-break toward larger size (power for weight).</li>
+              <li>Lighter riders: among safe unused kites, highest need-fit; tie-break toward smaller size. Solo kite used only if still free and nearly as good as the best safe option.</li>
+              <li>Session history affects <em>which</em> kite is safe/scored — not <em>when</em> you assign.</li>
               <li>Each kite id used at most once.</li>
             </ul>
           </li>
           <li>
-            <strong>Step C — accept or decline assignment:</strong>
+            <strong>Step C — rent vs use from bag:</strong>
             <ul>
-              <li>Score ≥ 45% → normal assignment.</li>
-              <li>Score &lt; 45% but kite still in bag and <strong>not declined</strong> by session/wind rules → assign as <strong>Use from bag</strong> (compromise).</li>
-              <li>Only mark unassigned + <strong>Last resort: rent</strong> when no kite left, or the only leftover fails minimum session size / is dangerously underpowered on chart (see <a href="#need-score">§10</a>).</li>
+              <li>If any <strong>safe</strong> kite remains → assign it (amber <strong>Use from bag</strong> when need-fit &lt; 45%).</li>
+              <li><strong>Last resort: rent</strong> only when no unused kite passes the safety threshold (weight, ability wind band, catalog range with ability slack, session minimum size).</li>
             </ul>
           </li>
           <li>
@@ -293,41 +293,23 @@
           </li>
         </ol>
 
-        <h3 id="need-score">10. Need score, power target &amp; thresholds</h3>
+        <h3 id="need-score">10. Need score, safety threshold &amp; ability</h3>
         <p>
-          Crew allocation does <strong>not</strong> reuse the solo 0–100 score blindly. It builds a
-          <strong>need-fit %</strong> per rider × kite, then applies assignment rules. Constants (current code):
+          Crew <strong>need-fit %</strong> is <code>scoreKiteForConditions()</code> in <code>engine.js</code> — the same
+          calculation as solo <code>recommendKite()</code> (no extra size penalties in allocation). Constants:
         </p>
         <ul>
-          <li><strong>45</strong> — <code>MIN_SUITABLE_SCORE</code>: “good enough” for a normal assignment.</li>
-          <li><strong>15</strong> — <code>MIN_HEAVY_TARGET_SCORE</code>: heaviest may keep a session-driven target kite with a low chart score.</li>
-          <li><strong>12</strong> — <code>MIN_BAG_LAST_RESORT_SCORE</code>: below this, a leftover kite is never forced from the bag.</li>
+          <li><strong>45</strong> — <code>MIN_SUITABLE_SCORE</code>: UI label “good match” vs amber <strong>Use from bag</strong> below this.</li>
+          <li>Rent is <strong>not</strong> tied to 45% — only to the safety check below.</li>
         </ul>
 
-        <h4>10.1 Solo score (starting point)</h4>
-        <p>For each kite, need starts from <code>recommendKite(conditions, [thatKite], calibration).score</code> — the same engine as Plan/Now (catalog range, session-tuned effective range, calibration boost/penalty, gust character). See <a href="#kite-pick">§6</a>.</p>
-
-        <h4>10.2 Chart size vs ideal (when sessions don’t justify the size)</h4>
+        <h4>10.1 Shared kite score (solo = crew)</h4>
         <p>
-          Compute <strong>ideal size (m²)</strong> for this wind and weight:
-          <code>(42 − windKt) / 2.8 × (weight / 75)^0.4</code>, rounded to nearest 0.5 m
-          (<code>idealKiteSizeForWind</code> in <code>engine.js</code>). Compare kite size to ideal:
-        </p>
-        <ul>
-          <li>More than 1 m larger → large penalty (chart says overpowered).</li>
-          <li>0.5–1 m larger → medium penalty.</li>
-          <li>More than 1 m smaller → penalty (underpowered vs chart).</li>
-          <li>0.5–1 m smaller → small penalty.</li>
-        </ul>
-        <p>
-          <strong>Session override:</strong> if the kite lies in the band
-          [session power floor − 0.5 m … session power floor + 2.5 m], those oversize penalties are
-          <em>not</em> applied, and a +18 boost is applied when size ≥ floor − 0.25 m.
-          Floor = max(minimum adequate size, typical preferred size near this wind).
-          This is why an 11 m can score well for a rider who was underpowered on 9 m in a similar-wind log even when the chart ideal is ~9 m.
+          Per kite: manufacturer/session effective range → wind band score → calibration nudge → gust character adjust
+          (<a href="#kite-pick">§6</a>). <code>recommendKite()</code> picks the max; allocation stores that score as need-fit for each rider × kite.
         </p>
 
-        <h4>10.3 Minimum adequate size from sessions</h4>
+        <h4>10.2 Minimum adequate size from sessions</h4>
         <p><code>inferMinAdequateKiteSize(wind, calibration, weight)</code>:</p>
         <ol class="doc-tree">
           <li>Consider sessions with wind within <strong>±4 kt</strong> of today’s window average.</li>
@@ -337,40 +319,24 @@
           <li>In need score: kite more than 0.25 m below minimum → −40; at or above minimum → +28.</li>
         </ol>
 
-        <h4>10.4 Typical size near this wind</h4>
+        <h4>10.3 Safety threshold (ability widens acceptance)</h4>
         <p>
-          <code>getCalibrationAtWind(wind, entries)</code> weights all sessions (stronger weight within ±6 kt),
-          maps each to a preferred size via the same feeling adjustments, and returns a weighted
-          <strong>preferredSize</strong> plus confidence (none / low / medium / high). This feeds both the session power floor and the power target.
+          After weight-priority picks, a leftover kite is <strong>safe</strong> for a rider when:
         </p>
-
-        <h4>10.5 Power target (who should hold how much power)</h4>
-        <p><code>targetPowerSizeForRider</code> = maximum of:</p>
         <ul>
-          <li>chart ideal size for weight at window average wind;</li>
-          <li>minimum adequate size (if any);</li>
-          <li>preferred size from calibration (if any);</li>
-          <li>solo pick size — only if solo score ≥ 40 and size ≥ target − 0.25 m.</li>
+          <li>Wind is inside their <strong>ability band</strong> (e.g. expert ~10–40 kt) with small slack;</li>
+          <li>Wind is within the kite’s catalog range, plus <strong>ability slack</strong> (expert +5 kt above chart max, intermediate +1 kt);</li>
+          <li>“Strong” comfort band: experts/advanced may still accept; intermediates must be nearer catalog max;</li>
+          <li>Session <strong>minimum adequate size</strong> is met (if any);</li>
+          <li>Need-fit ≥ 5 (degenerate scores excluded).</li>
         </ul>
         <p>
-          Heaviest rider: among unused kites, choose the one <strong>closest to this target</strong>
-          (prefer smallest kite still ≥ target − 0.5 m). Lighter riders: after normal suitability rules,
-          also prefer closest to target among remaining kites. This is <em>not</em> “heaviest always takes the biggest kite in the bag.”
+          <strong>Ability never changes assignment order</strong> — only which sizes from the remaining pool are allowed.
+          Fred (expert) can be assigned a more powered kite than Sam (intermediate) from the same leftovers at 18 kt gusty.
         </p>
 
-        <h4>10.6 When rent is shown</h4>
-        <p>Rent is <strong>last resort</strong> copy only. A rider is unassigned (and rent suggested) when:</p>
-        <ul>
-          <li>no unused kite remains; or</li>
-          <li>the only leftover kite scores &lt; 12% need-fit; or</li>
-          <li>leftover is more than 0.5 m below session minimum adequate size; or</li>
-          <li>wind is more than 1.5 kt below catalog minimum for that kite; or</li>
-          <li>leftover is more than 1.5 m smaller than chart ideal <em>and</em> chart band is “light” / underpowered.</li>
-        </ul>
-        <p>
-          Otherwise they are assigned with <strong>Use from bag</strong> and an amber warning even if need-fit is 40–44%.
-          Suggested rent size uses the same power target logic (may bump up if the only leftover was too small).
-        </p>
+        <h4>10.4 When rent is shown</h4>
+        <p>Rent is <strong>last resort</strong> only when <strong>no unused kite</strong> in the bag passes the safety threshold for that rider. Any safe kite is assigned, with amber copy if need-fit &lt; 45%. Suggested rent size uses chart + session floor (<code>targetPowerSizeForRider</code>).</p>
 
         <h3 id="session-compare">11. “From your log” comparison (Plan rider cards)</h3>
         <p>

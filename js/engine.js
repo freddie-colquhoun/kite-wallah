@@ -223,6 +223,44 @@ export function assessSuitability(conditions, calibration = [], spotEval = null)
   return { score, verdict, rideable, notes, limits, abilityLevel: level };
 }
 
+/**
+ * Single kite match score — same logic Plan, Now, and crew need-fit use.
+ * @param {Conditions} conditions
+ * @param {Kite} kite
+ * @param {CalibrationEntry[]} [calibration]
+ */
+export function scoreKiteForConditions(conditions, kite, calibration = []) {
+  const wind = conditions.windSpeed;
+  const catalog = getKiteWindRange(kite, conditions.riderWeight);
+  const effective = getEffectiveKiteRange(kite, catalog, calibration);
+  const { score: rangeScore, band } = scoreWindAgainstEffectiveRange(wind, effective);
+  const { score: calibratedScore } = applyCalibrationToScore(
+    rangeScore,
+    kite.size,
+    wind,
+    calibration
+  );
+  const character = effective.character ?? getKiteCharacter(kite);
+  const charAdjust = kiteCharacterScoreAdjust(
+    wind,
+    conditions.gustSpeed,
+    character
+  );
+  const sessionBoost =
+    effective.source === "sessions" && effective.confidence === "high" ? 8 : 0;
+
+  return {
+    kite,
+    score: Math.min(100, Math.round(calibratedScore + sessionBoost + charAdjust)),
+    character,
+    baseScore: rangeScore,
+    range: effective,
+    catalog,
+    band,
+    effective,
+  };
+}
+
 /** @param {Conditions} conditions @param {Kite[]} kites @param {CalibrationEntry[]} [calibration] */
 export function recommendKite(conditions, kites, calibration = []) {
   if (!kites?.length) return null;
@@ -231,36 +269,7 @@ export function recommendKite(conditions, kites, calibration = []) {
   const wind = conditions.windSpeed;
 
   const scored = kites
-    .map((kite) => {
-      const catalog = getKiteWindRange(kite, conditions.riderWeight);
-      const effective = getEffectiveKiteRange(kite, catalog, calibration);
-      const { score: rangeScore, band } = scoreWindAgainstEffectiveRange(wind, effective);
-      const { score: calibratedScore } = applyCalibrationToScore(
-        rangeScore,
-        kite.size,
-        wind,
-        calibration
-      );
-      const character = effective.character ?? getKiteCharacter(kite);
-      const charAdjust = kiteCharacterScoreAdjust(
-        wind,
-        conditions.gustSpeed,
-        character
-      );
-      const sessionBoost =
-        effective.source === "sessions" && effective.confidence === "high" ? 8 : 0;
-
-      return {
-        kite,
-        score: Math.min(100, calibratedScore + sessionBoost + charAdjust),
-        character,
-        baseScore: rangeScore,
-        range: effective,
-        catalog,
-        band,
-        effective,
-      };
-    })
+    .map((kite) => scoreKiteForConditions(conditions, kite, calibration))
     .sort((a, b) => b.score - a.score);
 
   const best = scored[0];
