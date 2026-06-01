@@ -28,8 +28,8 @@ export function getAiLayerMode() {
 }
 
 /** @param {AiLayerMode} mode */
-export function setAiLayerMode(_mode) {
-  setStoredAiLayerMode(_mode);
+export function setAiLayerMode(mode) {
+  setStoredAiLayerMode(mode);
 }
 
 /** @returns {boolean} */

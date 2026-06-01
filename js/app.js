@@ -747,7 +747,7 @@ void (async () => {
     const boot = await Promise.race([
       bootstrapData(),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Startup timed out after 20s")), 20_000);
+        setTimeout(() => reject(new Error("Startup timed out after 15s")), 15_000);
       }),
     ]);
     if (boot.state) bootState = boot.state;
@@ -765,5 +765,19 @@ void (async () => {
   state = bootState;
   updateSyncStatusDisplay();
   initLiveStatus();
-  startApp();
+  try {
+    startApp();
+  } catch (err) {
+    console.error("startApp failed", err);
+    const msg =
+      err instanceof Error ? err.message : "Something went wrong starting the app.";
+    setBootStatusMessage(msg);
+    const alert = document.getElementById("cloud-alert");
+    if (alert) {
+      alert.classList.remove("hidden");
+      alert.innerHTML =
+        '<div class="cloud-alert-inner"><p class="cloud-alert-title"><strong>App error</strong></p>' +
+        `<p class="cloud-alert-text">${escapeHtml(msg)}</p></div>`;
+    }
+  }
 })();

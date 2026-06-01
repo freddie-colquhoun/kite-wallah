@@ -24,7 +24,7 @@ const CREW_ROW_ID = "crew";
 const PERSIST_DEBOUNCE_MS = 700;
 const REMOTE_FETCH_TIMEOUT_MS = 12_000;
 const REMOTE_SAVE_TIMEOUT_MS = 12_000;
-const SUPABASE_IMPORT_TIMEOUT_MS = 12_000;
+const SUPABASE_IMPORT_TIMEOUT_MS = 8_000;
 const CLOUD_OFF_SESSION_KEY = "kite-wallah-cloud-off";
 
 /** @type {typeof import('@supabase/supabase-js').createClient|null} */
@@ -64,10 +64,6 @@ async function loadSupabaseCreateClient() {
     {
       label: "jsDelivr",
       url: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm",
-    },
-    {
-      label: "esm.sh",
-      url: "https://esm.sh/@supabase/supabase-js@2.49.1?bundle",
     },
   ];
 

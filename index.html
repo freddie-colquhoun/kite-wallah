@@ -8,6 +8,33 @@
   </head>
   <body>
     <div id="app-loading" class="app-loading" aria-live="polite">Loading Kite Wallah…</div>
+    <script>
+      (function () {
+        var LIVE_URL = "https://freddie-colquhoun.github.io/kite-wallah/";
+        var el = document.getElementById("app-loading");
+        if (!el) return;
+        if (location.protocol === "file:") {
+          el.innerHTML =
+            'Kite Wallah must run on the web, not as a saved file. <a href="' +
+            LIVE_URL +
+            '">Open the live site</a>';
+          return;
+        }
+        function hideLoadingOverlay() {
+          el.classList.add("hidden");
+        }
+        window.addEventListener("error", hideLoadingOverlay);
+        window.addEventListener("unhandledrejection", hideLoadingOverlay);
+        setTimeout(function () {
+          if (!el.classList.contains("hidden")) {
+            el.innerHTML =
+              'Still loading… Try a <a href="' +
+              LIVE_URL +
+              '">refresh</a> or check your connection. If this persists, open DevTools (F12) → Console for errors.';
+          }
+        }, 25000);
+      })();
+    </script>
 
     <div id="cloud-alert" class="cloud-alert hidden" role="alert" aria-live="assertive"></div>
 
@@ -116,11 +143,28 @@
                     <span>Include night hours</span>
                   </label>
                   <div class="field field-flush openai-setup">
+                    <label for="plan-openai-key">OpenAI API key</label>
+                    <input
+                      type="password"
+                      id="plan-openai-key"
+                      placeholder="sk-… from platform.openai.com"
+                      autocomplete="off"
+                    />
                     <p id="openai-setup-status" class="hint hint-tight openai-setup-status" aria-live="polite"></p>
                     <p class="hint hint-tight">
-                      AI summaries use <strong>gpt-4o-mini</strong>. Key is built into this site
-                      (<code>js/secrets.js</code>) — no need to paste a key here.
+                      Uses <strong>gpt-4o-mini</strong>. Key stays in this browser only (not shared crew data).
+                      <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Get a key</a>
+                      · set a billing cap in OpenAI.
                     </p>
+                  </div>
+                  <div class="field field-flush">
+                    <label for="ai-layer-mode">AI layer v2 (OpenAI)</label>
+                    <select id="ai-layer-mode">
+                      <option value="off">Off — rules only</option>
+                      <option value="explain" selected>Explain — natural language on picks</option>
+                      <option value="review">Review — explain + consistency warnings</option>
+                    </select>
+                    <div id="ai-v2-limits" class="ai-v2-limits-wrap"></div>
                   </div>
                 </div>
               </details>
