@@ -2050,6 +2050,24 @@ textarea:focus {
   color: var(--bad);
 }
 
+.field-feeling-slider {
+  margin: var(--space-sm) 0 var(--space-md);
+}
+
+.feeling-slider-current {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 1.35em;
+}
+
+.feeling-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .calibration-cta {
   margin: 0 0 var(--space-md);
   font-size: 0.75rem;

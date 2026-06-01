@@ -164,6 +164,33 @@ function querySuggestsUk(query) {
  * @param {string} query
  * @returns {Promise<SearchResult[]>}
  */
+/**
+ * All curated kitesurf launches (for pickers / dropdowns).
+ * @returns {Promise<SearchResult[]>}
+ */
+export async function listKitesurfLocations() {
+  const catalog = await loadKitesurfCatalog();
+  return catalog
+    .map((spot) => ({
+      name: spot.name,
+      lat: spot.lat,
+      lon: spot.lon,
+      label: `${spot.name}${spot.region ? ` · ${spot.region}` : ""}`,
+      source: /** @type {const} */ ("kitesurf"),
+      badge: "Kitesurf spot",
+      defaults: {
+        safeDirections: spot.safeDirections,
+        offshoreDirections: spot.offshoreDirections,
+        waterType: spot.waterType,
+        localKnowledge: spot.localKnowledge,
+        launchNotes: spot.launchNotes,
+        tideAccessRule: spot.tideAccessRule,
+        tideWindowHours: spot.tideWindowHours,
+      },
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
 export async function searchLocations(query) {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];

@@ -3,7 +3,7 @@
  */
 
 import { loadSpots, getSpot } from "./spots-storage.js";
-import { searchLocations } from "./location-search.js";
+import { listKitesurfLocations } from "./location-search.js";
 import { fetchWindForSpot, loadTidesForSpot, getSpotsState } from "./spots-ui.js";
 import { COMPASS } from "./spots-storage.js";
 import { renderWindPreviewInResults } from "./now-wind-panel.js";
@@ -35,7 +35,11 @@ let nowHandlers = null;
  * @property {number} lat
  * @property {number} lon
  * @property {string} label
+ * @property {SearchResult['defaults']} [defaults]
  */
+
+/** @type {SearchResult[]} */
+let adhocCatalogOptions = [];
 
 /** @typedef {Object} NowTabHandlers
  * @property {() => import('./storage.js').AppState} getState
@@ -98,6 +102,7 @@ export function refreshNowSpotsList(handlers) {
     .join("");
 
   spots.forEach((spot) => loadSpotCard(spot, handlers));
+  populateAdhocLocationSelect(handlers);
 }
 
 export function getAdhocLocation() {
@@ -218,71 +223,82 @@ function runSpotAnalyse(spot, handlers) {
   });
 }
 
+function normalizeSpotName(name) {
+  return String(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** @param {NowTabHandlers} handlers */
+async function populateAdhocLocationSelect(handlers) {
+  const select = document.getElementById("now-location-select");
+  if (!select) return;
+
+  const savedKeys = new Set(loadSpots().map((s) => normalizeSpotName(s.name)));
+  const prev = select.value;
+
+  try {
+    const all = await listKitesurfLocations();
+    adhocCatalogOptions = all.filter((o) => !savedKeys.has(normalizeSpotName(o.name)));
+  } catch (err) {
+    console.warn("kitesurf catalog", err);
+    adhocCatalogOptions = [];
+  }
+
+  select.innerHTML =
+    `<option value="">Choose a location…</option>` +
+    adhocCatalogOptions
+      .map(
+        (o, i) =>
+          `<option value="${i}">${handlers.escapeHtml(o.label)}</option>`
+      )
+      .join("");
+
+  if (prev && adhocLocation) {
+    const idx = adhocCatalogOptions.findIndex(
+      (o) => o.lat === adhocLocation.lat && o.lon === adhocLocation.lon
+    );
+    if (idx >= 0) select.value = String(idx);
+  }
+}
+
 /** @param {NowTabHandlers} handlers */
 function wireAdhocSearch(handlers) {
-  const input = document.getElementById("now-location-search");
-  const resultsEl = document.getElementById("now-location-results");
-  const pickedEl = document.getElementById("now-adhoc-picked");
-  if (!input || !resultsEl) return;
+  const select = document.getElementById("now-location-select");
+  if (!select) return;
 
-  let timer;
-  input.addEventListener("input", () => {
-    clearTimeout(timer);
-    const q = input.value.trim();
-    if (q.length < 2) {
-      resultsEl.innerHTML = "";
+  populateAdhocLocationSelect(handlers);
+
+  select.addEventListener("change", () => {
+    const idx = select.value;
+    if (idx === "") {
+      clearAdhocLocation();
       return;
     }
-    timer = setTimeout(async () => {
-      resultsEl.innerHTML = '<p class="hint search-empty">Searching…</p>';
-      let results = [];
-      try {
-        results = await searchLocations(q);
-      } catch (err) {
-        console.warn("location search", err);
-        resultsEl.innerHTML =
-          '<p class="hint search-empty">Search failed. Check connection or try again.</p>';
-        return;
-      }
-      if (!results.length) {
-        resultsEl.innerHTML =
-          '<p class="hint search-empty">No results. Try a beach or harbour name.</p>';
-        return;
-      }
-      resultsEl.innerHTML = results
-        .map(
-          (r, i) =>
-            `<button type="button" class="search-result-btn" data-idx="${i}"><span class="search-result-badge search-badge-${r.source}">${handlers.escapeHtml(r.badge || r.source)}</span>${handlers.escapeHtml(r.label)}</button>`
-        )
-        .join("");
-      resultsEl.querySelectorAll(".search-result-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const r = results[Number(btn.dataset.idx)];
-          pickAdhocLocation(r, handlers);
-          resultsEl.innerHTML = "";
-          input.value = "";
-        });
-      });
-    }, 450);
+    const r = adhocCatalogOptions[Number(idx)];
+    if (r) pickAdhocLocation(r, handlers);
   });
 
   document.getElementById("now-adhoc-clear")?.addEventListener("click", () => {
-    adhocLocation = null;
-    adhocWindSnapshot = null;
-    if (pickedEl) {
-      pickedEl.classList.add("hidden");
-      pickedEl.textContent = "";
-    }
-    const preview = document.getElementById("now-adhoc-wind-preview");
-    if (preview) preview.innerHTML = "";
-    const status = document.getElementById("now-adhoc-wind-status");
-    if (status) {
-      status.classList.add("hidden");
-      status.textContent = "";
-    }
-    const results = document.getElementById("now-adhoc-results");
-    if (results) results.innerHTML = "";
+    clearAdhocLocation();
+    select.value = "";
   });
+}
+
+function clearAdhocLocation() {
+  adhocLocation = null;
+  adhocWindSnapshot = null;
+  const preview = document.getElementById("now-adhoc-wind-preview");
+  if (preview) preview.innerHTML = "";
+  const status = document.getElementById("now-adhoc-wind-status");
+  if (status) {
+    status.classList.add("hidden");
+    status.textContent = "";
+  }
+  const results = document.getElementById("now-adhoc-results");
+  if (results) results.innerHTML = "";
 }
 
 /** @param {SearchResult} r @param {NowTabHandlers} handlers */
@@ -292,15 +308,8 @@ async function pickAdhocLocation(r, handlers) {
     lat: r.lat,
     lon: r.lon,
     label: r.label,
+    defaults: r.defaults,
   };
-  const pickedEl = document.getElementById("now-adhoc-picked");
-  if (pickedEl) {
-    pickedEl.classList.remove("hidden");
-    pickedEl.innerHTML = `Checking <strong>${handlers.escapeHtml(r.name)}</strong> · <button type="button" class="btn-link" id="now-adhoc-clear-inline">Clear</button>`;
-    pickedEl.querySelector("#now-adhoc-clear-inline")?.addEventListener("click", () => {
-      document.getElementById("now-adhoc-clear")?.click();
-    });
-  }
 
   const manual = document.getElementById("wind-manual-mode")?.checked === true;
   if (!manual) {
@@ -339,19 +348,23 @@ async function refreshAdhocWind(handlers) {
 
 /** @param {AdhocLocation} loc */
 function adhocSpotFromLocation(loc) {
+  const d = loc.defaults ?? {};
+  const waterEl = document.getElementById("water-type");
+  if (d.waterType && waterEl) waterEl.value = d.waterType;
+
   return {
     id: "adhoc",
     name: loc.name,
     lat: loc.lat,
     lon: loc.lon,
-    waterType: document.getElementById("water-type")?.value || "choppy",
-    safeDirections: [...COMPASS],
-    offshoreDirections: [],
-    launchNotes: "",
-    localKnowledge: "",
+    waterType: d.waterType || waterEl?.value || "choppy",
+    safeDirections: d.safeDirections?.length ? d.safeDirections : [...COMPASS],
+    offshoreDirections: d.offshoreDirections ?? [],
+    launchNotes: d.launchNotes ?? "",
+    localKnowledge: d.localKnowledge ?? "",
     tidePreference: "any",
-    tideAccessRule: "any",
-    tideWindowHours: 3,
+    tideAccessRule: d.tideAccessRule ?? "any",
+    tideWindowHours: d.tideWindowHours ?? 3,
     noaaStationId: null,
   };
 }

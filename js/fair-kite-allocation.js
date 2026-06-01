@@ -4,7 +4,13 @@
  */
 
 import { recommendKite, getKiteWindRange, idealKiteSizeForWind } from "./engine.js";
-import { inferPreferredSize, getCalibrationAtWind } from "./calibration.js";
+import {
+  inferPreferredSize,
+  getCalibrationAtWind,
+  isUnderpoweredFeeling,
+  isOverpoweredFeeling,
+  isHappyFeeling,
+} from "./calibration.js";
 import { formatKt } from "./format.js";
 
 /** @typedef {import('./kite-allocation.js').RiderAllocInput} RiderAllocInput */
@@ -26,7 +32,7 @@ export function inferMinAdequateKiteSize(windSpeed, calibration, riderWeight = 7
   let minSize = 0;
 
   for (const e of near) {
-    if (e.feeling === "too-small" || e.feeling === "couldnt-ride") {
+    if (isUnderpoweredFeeling(e.feeling)) {
       minSize = Math.max(minSize, inferPreferredSize(e));
     }
   }
@@ -205,13 +211,13 @@ function explainPoorRemainingKiteFit(rider, pick, minAdequate, idealSize) {
   );
   if (onThisKite.length) {
     const bad = onThisKite.filter((e) =>
-      ["too-small", "couldnt-ride", "too-big"].includes(e.feeling)
+      isUnderpoweredFeeling(e.feeling) || isOverpoweredFeeling(e.feeling)
     );
     if (bad.length) {
       const notes = [
         ...new Set(
           bad.map((e) => {
-            if (e.feeling === "too-big") return `overpowered on this kite at ${e.windSpeed} kt`;
+            if (isOverpoweredFeeling(e.feeling)) return `overpowered on this kite at ${e.windSpeed} kt`;
             return `underpowered on this kite at ${e.windSpeed} kt`;
           })
         ),
@@ -219,7 +225,7 @@ function explainPoorRemainingKiteFit(rider, pick, minAdequate, idealSize) {
       parts.push(`You've logged: ${notes.join("; ")}.`);
     } else {
       const ok = onThisKite.filter((e) =>
-        ["just-right", "comfortable"].includes(e.feeling)
+        isHappyFeeling(e.feeling)
       );
       if (!ok.length) {
         parts.push(

@@ -5,6 +5,11 @@
  */
 
 import { adjustCatalogForCharacter, getKiteCharacter } from "./kite-character.js";
+import {
+  isHappyFeeling,
+  isUnderpoweredFeeling,
+  isOverpoweredFeeling,
+} from "./calibration.js";
 
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
 /** @typedef {import('./engine.js').Kite} Kite */
@@ -74,11 +79,9 @@ function buildPersonalFromSessions(entries, kite, minWeight) {
     };
   }
 
-  const happy = picked.filter(
-    (e) => e.feeling === "just-right" || e.feeling === "comfortable"
-  );
-  const tooSmall = picked.filter((e) => e.feeling === "too-small");
-  const tooBig = picked.filter((e) => e.feeling === "too-big");
+  const happy = picked.filter((e) => isHappyFeeling(e.feeling));
+  const tooSmall = picked.filter((e) => isUnderpoweredFeeling(e.feeling));
+  const tooBig = picked.filter((e) => isOverpoweredFeeling(e.feeling));
 
   let funMin = null;
   if (happy.length) {

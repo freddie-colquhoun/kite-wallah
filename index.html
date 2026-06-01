@@ -159,18 +159,13 @@
 
               <form id="now-adhoc-form" class="card card-slim compact-form now-adhoc-card">
                 <h2 class="now-section-title">Another location</h2>
-                <p class="hint hint-tight">Search anywhere, or enter wind manually without a saved spot.</p>
+                <p class="hint hint-tight">Pick a spot from the list, or enter wind manually without a saved location.</p>
                 <div class="field field-flush">
-                  <label for="now-location-search">Search location</label>
-                  <input
-                    type="search"
-                    id="now-location-search"
-                    placeholder="e.g. Portland Harbour, Dakhla, Brighton"
-                    autocomplete="off"
-                  />
-                  <div id="now-location-results" class="search-results"></div>
+                  <label for="now-location-select">Location</label>
+                  <select id="now-location-select">
+                    <option value="">Choose a location…</option>
+                  </select>
                 </div>
-                <p id="now-adhoc-picked" class="now-adhoc-picked hint hidden"></p>
                 <div class="now-adhoc-toolbar">
                   <button type="button" class="btn btn-secondary btn-sm" id="now-adhoc-clear">Clear location</button>
                 </div>

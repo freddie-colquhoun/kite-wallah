@@ -1,4 +1,8 @@
-import { FEELING_LABELS } from "./calibration.js";
+import {
+  FEELING_LABELS,
+  isUnderpoweredFeeling,
+  isOverpoweredFeeling,
+} from "./calibration.js";
 import { sessionStartIso } from "./session-helpers.js";
 import { gustSpread } from "./wind-session-copy.js";
 
@@ -194,7 +198,10 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
   let relevant = false;
   if (windDiff <= 3) relevant = true;
   if (sameSpot && windDiff <= 6) relevant = true;
-  if (["too-small", "too-big", "couldnt-ride"].includes(e.feeling) && windDiff <= 6) {
+  if (
+    (isUnderpoweredFeeling(e.feeling) || isOverpoweredFeeling(e.feeling)) &&
+    windDiff <= 6
+  ) {
     relevant = true;
   }
   if (sizeDiff >= 1 && windDiff <= 6) relevant = true;
@@ -217,12 +224,10 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
     } else if (e.kiteSize > recSize + 0.25) {
       lead = `Today points to less power than your ${e.kiteSize}m log. `;
     }
-  } else if (e.feeling === "too-small") {
+  } else if (isUnderpoweredFeeling(e.feeling)) {
     lead = "You were underpowered in similar wind before — ";
-  } else if (e.feeling === "too-big") {
+  } else if (isOverpoweredFeeling(e.feeling)) {
     lead = "You were overpowered in similar wind before — ";
-  } else if (e.feeling === "couldnt-ride") {
-    lead = "You struggled in similar wind before — ";
   }
 
   return { body: `${lead}${card.body}`.replace(/\s+/g, " ").trim() };

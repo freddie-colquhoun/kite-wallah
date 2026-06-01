@@ -1,5 +1,5 @@
 /**
- * @typedef {'too-small'|'just-right'|'comfortable'|'too-big'|'couldnt-ride'} SessionFeeling
+ * @typedef {'couldnt-ride'|'very-underpowered'|'underpowered-rideable'|'slightly-underpowered'|'just-right'|'comfortable'|'slightly-overpowered'|'overpowered-rideable'|'very-overpowered'|'too-small'|'too-big'} SessionFeeling
  */
 
 /**
@@ -26,12 +26,72 @@
  */
 
 const FEELING_LABELS = {
-  "too-small": "Too small  ·  underpowered",
-  "just-right": "Just right",
+  "couldnt-ride": "Couldn't get going / stay upwind",
+  "very-underpowered": "Very underpowered",
+  "underpowered-rideable": "Underpowered but still rideable",
+  "slightly-underpowered": "A little underpowered",
+  "just-right": "Perfect",
   comfortable: "Comfortable  ·  would use again",
+  "slightly-overpowered": "A little powered up",
+  "overpowered-rideable": "Overpowered but still manageable",
+  "very-overpowered": "Very overpowered / hard to hold down",
+  "too-small": "Too small  ·  underpowered",
   "too-big": "Too big  ·  overpowered or scary",
-  "couldnt-ride": "Couldn't get out / stay upwind",
 };
+
+/** @param {SessionFeeling|string} feeling */
+export function isHappyFeeling(feeling) {
+  return feeling === "just-right" || feeling === "comfortable";
+}
+
+/** @param {SessionFeeling|string} feeling */
+export function isUnderpoweredFeeling(feeling) {
+  return [
+    "couldnt-ride",
+    "very-underpowered",
+    "underpowered-rideable",
+    "slightly-underpowered",
+    "too-small",
+  ].includes(feeling);
+}
+
+/** @param {SessionFeeling|string} feeling */
+export function isOverpoweredFeeling(feeling) {
+  return [
+    "slightly-overpowered",
+    "overpowered-rideable",
+    "very-overpowered",
+    "too-big",
+  ].includes(feeling);
+}
+
+/** @param {SessionFeeling} feeling */
+function feelingSizeDelta(feeling) {
+  switch (feeling) {
+    case "couldnt-ride":
+      return 2;
+    case "very-underpowered":
+      return 1.5;
+    case "underpowered-rideable":
+    case "too-small":
+      return 1;
+    case "slightly-underpowered":
+      return 0.5;
+    case "just-right":
+    case "comfortable":
+      return 0;
+    case "slightly-overpowered":
+      return -0.5;
+    case "overpowered-rideable":
+      return -0.75;
+    case "too-big":
+      return -1;
+    case "very-overpowered":
+      return -1.5;
+    default:
+      return 0;
+  }
+}
 
 /**
  * Infer the kite size the rider would have preferred from a session entry.
@@ -39,19 +99,8 @@ const FEELING_LABELS = {
  * @returns {number}
  */
 export function inferPreferredSize(entry) {
-  switch (entry.feeling) {
-    case "just-right":
-    case "comfortable":
-      return entry.kiteSize;
-    case "too-big":
-      return entry.kiteSize - 1;
-    case "too-small":
-      return entry.kiteSize + 1;
-    case "couldnt-ride":
-      return entry.kiteSize + 2;
-    default:
-      return entry.kiteSize;
-  }
+  const delta = feelingSizeDelta(entry.feeling);
+  return Math.round((entry.kiteSize + delta) * 2) / 2;
 }
 
 /**
@@ -138,9 +187,7 @@ export function applyCalibrationToScore(baseScore, kiteSize, windSpeed, entries)
  */
 export function adjustSuitabilityWithCalibration(score, windSpeed, entries) {
   const positive = entries.filter(
-    (e) =>
-      Math.abs(e.windSpeed - windSpeed) <= 3 &&
-      (e.feeling === "just-right" || e.feeling === "comfortable")
+    (e) => Math.abs(e.windSpeed - windSpeed) <= 3 && isHappyFeeling(e.feeling)
   );
 
   if (!positive.length) return { score, calibrationNote: null };

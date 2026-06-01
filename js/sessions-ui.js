@@ -1,5 +1,10 @@
 import { createId } from "./ids.js";
 import { FEELING_LABELS } from "./calibration.js";
+import {
+  renderFeelingSliderHtml,
+  wireFeelingSlider,
+  feelingTagFor,
+} from "./session-feeling.js";
 import { getSpot, loadSpots, COMPASS } from "./spots-storage.js";
 import { getProfile, isRiderSexSet, syncRiderGearIdsFromSessions } from "./storage.js";
 import {
@@ -30,14 +35,6 @@ let onPersist = () => {};
 
 /** @type {(str: string) => string} */
 let escapeHtml = (s) => s;
-
-const FEELING_TAG_CLASS = {
-  "just-right": "good",
-  comfortable: "good",
-  "too-small": "warn",
-  "too-big": "warn",
-  "couldnt-ride": "bad",
-};
 
 /**
  * @param {object} hooks
@@ -186,15 +183,6 @@ export function renderSessionsPanel(state) {
         <div class="field hidden" id="sess-size-only-wrap" hidden><label>Kite size (m²)</label><input type="number" id="sess-size-only" min="3" max="21" step="0.5" /></div>
         <div class="field-row field-row-tight">
           <div class="field"><label>Board</label><select id="sess-board"><option value=""> · </option></select></div>
-          <div class="field"><label>How the kite felt</label>
-            <select id="sess-feeling" required>
-              <option value="just-right">Just right</option>
-              <option value="comfortable">Comfortable</option>
-              <option value="too-small">Too small</option>
-              <option value="too-big">Too big</option>
-              <option value="couldnt-ride">Couldn't ride</option>
-            </select>
-          </div>
           <div class="field"><label>Session (1-5)</label>
             <select id="sess-rating">
               <option value=""> · </option>
@@ -206,6 +194,7 @@ export function renderSessionsPanel(state) {
             </select>
           </div>
         </div>
+        ${renderFeelingSliderHtml("sess", "just-right")}
         <div class="field"><label>Notes</label><input type="text" id="sess-notes" placeholder="Anything else worth remembering" /></div>
         <button type="submit" class="btn btn-primary">Save session</button>
       </form>
@@ -221,6 +210,7 @@ export function renderSessionsPanel(state) {
   populateSessionSpotSelectFor("sess-spot");
   populateSessionKiteSelect(profile);
   populateSessionBoardSelect(profile);
+  wireFeelingSlider("sess");
   closeSessionEditor();
   const dateEl = document.getElementById("sess-date");
   const startEl = document.getElementById("sess-start");
@@ -478,16 +468,6 @@ function openSessionEditor(state, entryId) {
               <option value="waves" ${entry.waterType === "waves" ? "selected" : ""}>Waves</option>
             </select>
           </div>
-          <div class="field"><label>How the kite felt</label>
-            <select id="sess-edit-feeling" required>
-              ${["just-right", "comfortable", "too-small", "too-big", "couldnt-ride"]
-                .map(
-                  (f) =>
-                    `<option value="${f}" ${entry.feeling === f ? "selected" : ""}>${FEELING_LABELS[f].split(" · ")[0]}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
           <div class="field"><label>Session (1-5)</label>
             <select id="sess-edit-rating">
               <option value="">—</option>
@@ -500,6 +480,7 @@ function openSessionEditor(state, entryId) {
             </select>
           </div>
         </div>
+        ${renderFeelingSliderHtml("sess-edit", entry.feeling)}
         <div class="field">
           <label for="sess-edit-water-look">Water look &amp; feel</label>
           <input type="text" id="sess-edit-water-look" value="${escapeAttr(entry.waterDescription || "")}" />
@@ -517,6 +498,7 @@ function openSessionEditor(state, entryId) {
   populateSessionKiteSelect(profile, "sess-edit-kite", kiteVal);
   document.getElementById("sess-edit-kite")?.addEventListener("change", () => updateSessionKiteExtraFields("sess-edit"));
   updateSessionKiteExtraFields("sess-edit");
+  wireFeelingSlider("sess-edit");
 
   panel.hidden = false;
   panel.classList.remove("hidden");
@@ -582,7 +564,7 @@ function renderSessionsList(profile) {
 
   list.innerHTML = profile.calibration
     .map((e) => {
-      const tag = FEELING_TAG_CLASS[e.feeling] ?? "warn";
+      const tag = feelingTagFor(e.feeling);
       const when = formatSessionDateTimeLine(e);
       const spot = e.spotName ? escapeHtml(e.spotName) : " · ";
       const gust =
