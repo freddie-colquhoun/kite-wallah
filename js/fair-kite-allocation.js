@@ -21,6 +21,8 @@ import { formatKt } from "./format.js";
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
 
 const MIN_SUITABLE_SCORE = 45;
+/** Heaviest rider may take largest kite with slightly lower score if it matches power need. */
+const MIN_HEAVY_POWER_SCORE = 38;
 
 /**
  * @param {number} windSpeed
@@ -312,7 +314,10 @@ function linkSoloKitesTakenByOthers(unassigned, assignments) {
   for (const u of unassigned) {
     if (!u.soloPick) continue;
     const holder = assignments.find((a) => a.kite.id === u.soloPick.id);
-    if (holder) u.soloTakenBy = holder.name;
+    if (holder) {
+      u.soloTakenBy = holder.name;
+      u.takenKiteName = holder.kite.name;
+    }
   }
 }
 
@@ -361,9 +366,9 @@ export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
 
     /** @type {string[]} */
     const reasons = [];
-    if (unassigned.soloTakenBy && unassigned.soloPick) {
+    if (unassigned.soloTakenBy && unassigned.takenKiteName) {
       reasons.push(
-        `<strong>${escapeAllocHtml(unassigned.soloPick.name)}</strong> is with <strong>${escapeAllocHtml(unassigned.soloTakenBy)}</strong> — not free for you.`
+        `<strong>${escapeAllocHtml(unassigned.takenKiteName)}</strong> is assigned to <strong>${escapeAllocHtml(unassigned.soloTakenBy)}</strong> — not free for you.`
       );
     }
     if (unassigned.poorFitKite) {
@@ -396,21 +401,33 @@ export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
 }
 
 /**
- * Solo ideal if free; else largest suitable (heavier) or smallest (lighter).
+ * Solo ideal if free; heaviest takes largest power kite; lighter riders take smallest suitable.
  * @param {ReturnType<typeof scoreRiderAgainstAllKites> & RiderAllocInput} r
  * @param {Set<string>} usedIds
  * @param {number} medianWeight
+ * @param {boolean} isHeaviest
  */
-function pickKiteForSharedQuiver(r, usedIds, medianWeight) {
+function pickKiteForSharedQuiver(r, usedIds, medianWeight, isHeaviest) {
   const weight = r.conditions.riderWeight ?? 75;
-  const suitable = r.scored.filter(
-    (s) => s.need >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id)
-  );
-  if (!suitable.length) {
-    return r.scored.find((s) => !usedIds.has(s.kite.id)) ?? null;
-  }
+  const ideal =
+    r.idealSize ?? idealKiteSizeForWind(r.conditions.windSpeed, weight);
+  const available = r.scored.filter((s) => !usedIds.has(s.kite.id));
+  if (!available.length) return null;
 
   const preferLarge = weight >= medianWeight;
+
+  if (isHeaviest && preferLarge) {
+    const forPower = available
+      .filter((s) => s.kite.size >= ideal - 1 && s.need >= MIN_HEAVY_POWER_SCORE)
+      .sort((a, b) => b.kite.size - a.kite.size);
+    if (forPower.length) return forPower[0];
+  }
+
+  const suitable = available.filter((s) => s.need >= MIN_SUITABLE_SCORE);
+  if (!suitable.length) {
+    return available.sort((a, b) => b.need - a.need)[0] ?? null;
+  }
+
   const soloId = r.solo?.kite?.id;
   if (soloId) {
     const soloRow = suitable.find((s) => s.kite.id === soloId);
@@ -423,6 +440,7 @@ function pickKiteForSharedQuiver(r, usedIds, medianWeight) {
       if (keepSolo) return soloRow;
     }
   }
+
   const sorted = [...suitable].sort((a, b) =>
     preferLarge ? b.kite.size - a.kite.size : a.kite.size - b.kite.size
   );
@@ -594,8 +612,9 @@ export function allocateKitesFairly(riders, allKites) {
   /** @type {UnassignedRider[]} */
   const unassigned = [];
 
-  for (const r of enriched) {
-    const pick = pickKiteForSharedQuiver(r, usedIds, medianWeight);
+  for (let i = 0; i < enriched.length; i++) {
+    const r = enriched[i];
+    const pick = pickKiteForSharedQuiver(r, usedIds, medianWeight, i === 0);
 
     if (!pick) {
       unassigned.push({

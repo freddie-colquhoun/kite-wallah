@@ -48,6 +48,7 @@ const MIN_SUITABLE_SCORE = 45;
  * @property {Kite|null} [poorFitKite]
  * @property {number|null} [poorFitScore]
  * @property {string|null} [soloTakenBy]
+ * @property {string|null} [takenKiteName]
  */
 
 /**
