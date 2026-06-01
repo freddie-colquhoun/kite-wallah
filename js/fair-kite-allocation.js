@@ -18,7 +18,7 @@ import { getSkillLimits, normalizeAbility } from "./ability-levels.js";
 import {
   inferPreferredSize,
   getCalibrationAtWind,
-  isUnderpoweredFeeling,
+  isSeriousUnderpoweredFeeling,
 } from "./calibration.js";
 import { describeWindVsKiteRange } from "./kite-personal-range.js";
 import { escapeHtml } from "./dom-safe.js";
@@ -46,7 +46,7 @@ export function inferMinAdequateKiteSize(windSpeed, calibration, riderWeight = 7
   let minSize = 0;
 
   for (const e of near) {
-    if (isUnderpoweredFeeling(e.feeling)) {
+    if (isSeriousUnderpoweredFeeling(e.feeling)) {
       let preferred = inferPreferredSize(e);
       if (windSpeed < e.windSpeed - 2) {
         preferred += Math.min(1.5, ((e.windSpeed - windSpeed) / 4) * 0.5);

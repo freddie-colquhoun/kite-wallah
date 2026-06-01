@@ -55,6 +55,16 @@ export function isUnderpoweredFeeling(feeling) {
   ].includes(feeling);
 }
 
+/** Hard floor for min adequate size — not "slightly underpowered" (scoring only). */
+export function isSeriousUnderpoweredFeeling(feeling) {
+  return [
+    "couldnt-ride",
+    "very-underpowered",
+    "underpowered-rideable",
+    "too-small",
+  ].includes(feeling);
+}
+
 /** @param {SessionFeeling|string} feeling */
 export function isOverpoweredFeeling(feeling) {
   return [

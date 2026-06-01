@@ -313,7 +313,7 @@
         <p><code>inferMinAdequateKiteSize(wind, calibration, weight)</code>:</p>
         <ol class="doc-tree">
           <li>Consider sessions with wind within <strong>±4 kt</strong> of today’s window average.</li>
-          <li>For each entry with an <strong>underpowered</strong> feeling, compute preferred size = logged kite size + feeling adjustment (e.g. slightly underpowered on 9 m → 9.5 m; underpowered-rideable on 9 m → 10 m). See feeling table in <a href="#sessions">§14</a>.</li>
+          <li>For each entry with a <strong>serious underpowered</strong> feeling (underpowered-rideable, very underpowered, couldn’t ride, too small — not “a little underpowered”), compute preferred size = logged kite size + feeling adjustment (e.g. underpowered-rideable on 9 m → 10 m). See feeling table in <a href="#sessions">§14</a>.</li>
           <li>If today’s wind is <strong>lighter</strong> than that session (by more than 2 kt), add up to <strong>+1.5 m</strong> extra need (0.5 m per 4 kt lighter, capped).</li>
           <li>Take the maximum across matching sessions; add +0.5 m for riders ≥ 88 kg, another +0.5 m for ≥ 98 kg.</li>
           <li>In need score: kite more than 0.25 m below minimum → −40; at or above minimum → +28.</li>
