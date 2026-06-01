@@ -203,20 +203,3 @@ export function listCatalogKitesAtSize(size, rider = {}) {
   }
   return out;
 }
-
-export function searchKites(query) {
-  if (!catalog || !query.trim()) return [];
-  const q = normalize(query);
-  const results = [];
-
-  for (const [brand, models] of Object.entries(catalog.brands)) {
-    for (const [model, spec] of Object.entries(models)) {
-      const label = `${brand} ${model}`;
-      if (normalize(label).includes(q) || normalize(brand).includes(q) || normalize(model).includes(q)) {
-        results.push({ brand, model, style: spec.style, type: spec.type });
-      }
-    }
-  }
-
-  return results.slice(0, 8);
-}

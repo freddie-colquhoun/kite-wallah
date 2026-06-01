@@ -18,8 +18,6 @@ import {
   formatSessionDateTimeLine,
   sessionStartIso,
 } from "./session-helpers.js";
-import { refreshPlanCompareSelect } from "./planner-ui.js";
-
 /** @typedef {import('./storage.js').AppState} AppState */
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
@@ -530,7 +528,6 @@ function handleSessionEditSubmit(state) {
 
   syncRiderGearIdsFromSessions(profile);
   onPersist(profile);
-  refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
   closeSessionEditor();
   renderSessionsPanel(state);
 }
@@ -545,7 +542,6 @@ function removeSession(state, entryId) {
   syncRiderGearIdsFromSessions(p);
   onPersist(p);
   renderSessionsPanel(state);
-  refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
 }
 
 /** @param {RiderProfile} profile */
@@ -622,8 +618,6 @@ function handleSessionSubmit(state) {
 
   syncRiderGearIdsFromSessions(profile);
   onPersist(profile);
-  refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
-
   const form = document.getElementById("sessions-form");
   form?.reset();
   const dateEl = document.getElementById("sess-date");

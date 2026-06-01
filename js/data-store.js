@@ -3,6 +3,7 @@
  */
 
 import { CLOUD_CONFIG } from "./config.js";
+import { escapeHtml } from "./dom-safe.js";
 import {
   readLocalState,
   loadState,
@@ -583,10 +584,3 @@ function hideCloudAlert() {
   el.innerHTML = "";
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

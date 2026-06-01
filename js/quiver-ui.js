@@ -2,6 +2,7 @@
  * Shared quiver tab: kites (labels, repairs) + boards.
  */
 
+import { escapeHtml } from "./dom-safe.js";
 import { loadCatalog, getBrands, getModels, getSizes, fetchKiteSpecs } from "./kite-lookup.js";
 import { createId } from "./ids.js";
 import { formatNum, formatKt } from "./format.js";
@@ -687,14 +688,6 @@ function wireQuiverGlobalEvents(/** @type {(s: AppState) => void} */ onChange) {
     onChange?.(quiverState);
     renderQuiverPanel();
   });
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function escapeAttr(str) {

@@ -47,6 +47,7 @@ import { sessionLevelLabel } from "./session-rating.js";
 import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
+import { escapeHtml } from "./dom-safe.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
 /** @typedef {import('./storage.js').AppState} AppState */
@@ -71,14 +72,6 @@ function setTravelBlockVisible(el, visible) {
     el.setAttribute("hidden", "");
     el.classList.add("hidden");
   }
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 const WIND_LABELS = {
@@ -433,10 +426,6 @@ export function initPlannerModule(state) {
 
   document.getElementById("plan-show-night")?.addEventListener("change", () => {
     if (lastPlanContext) recomputePlansFromCache();
-  });
-
-  document.getElementById("plan-spot")?.addEventListener("change", () => {
-    refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
   });
 
   refreshPlanUi(state);
@@ -1206,9 +1195,6 @@ function wirePlanTimelineTips(root) {
     window.addEventListener("resize", hidePlanHourFloatTip);
   }
 }
-
-/** No-op  ·  compare moved to per-day cards. Kept for callers after session log. */
-export function refreshPlanCompareSelect() {}
 
 function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) {
   const results = document.getElementById("plan-results");

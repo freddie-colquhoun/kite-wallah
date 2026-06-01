@@ -4,8 +4,6 @@
  */
 
 import { createId } from "./ids.js";
-import { normalizeAbility } from "./ability-levels.js";
-import { getSkillLimits } from "./ability-levels.js";
 
 /** @typedef {import('./engine.js').Kite} Kite */
 /** @typedef {import('./engine.js').Board} Board */
@@ -200,11 +198,6 @@ export function profileToQuiverFromState(state, profile) {
     kites: getRiderKites(state, profile),
     boards: getRiderBoards(state, profile),
   };
-}
-
-/** @param {RiderProfile} profile */
-export function getProfileSkillLimits(profile) {
-  return getSkillLimits(normalizeAbility(profile.ability));
 }
 
 /** @param {AppState} state @param {Kite} kite */

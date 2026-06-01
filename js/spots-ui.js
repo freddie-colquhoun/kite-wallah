@@ -10,6 +10,7 @@ import {
 import { searchLocations, fetchNowWindOutlook } from "./weather.js";
 import { mountWindRosePair, getRoseDirections, setWindRoseSelections } from "./wind-rose.js";
 import { renderWindPreviewInResults } from "./now-wind-panel.js";
+import { escapeHtml } from "./dom-safe.js";
 import { formatCoord } from "./format.js";
 import { initSpotMap, setSpotMapPosition, destroySpotMap, roundCoord } from "./spot-map.js";
 import { fetchTides, findNearestNoaaStation } from "./tides.js";
@@ -32,10 +33,6 @@ let onSpotsChange = null;
 
 export function getSpotsState() {
   return { spots, settings, lastTides, lastWindSource, lastNowWindSnapshot };
-}
-
-export function getNowWindSnapshot() {
-  return lastNowWindSnapshot;
 }
 
 export function getActiveSpot() {
@@ -84,9 +81,6 @@ export function renderSpotNav() {
     });
   });
 }
-
-/** Legacy no-op: Now tab uses per-spot cards instead of a dropdown. */
-export function renderAnalyseSpotSelect() {}
 
 /** @param {() => void} onChange */
 export function renderSpotEditor(onChange) {
@@ -281,7 +275,6 @@ function wireSpotEditor(spot, onChange) {
     Object.assign(spot, readSpotForm(spot));
     saveSpots(spots);
     renderSpotNav();
-    renderAnalyseSpotSelect();
     onChange();
   });
 
@@ -289,7 +282,6 @@ function wireSpotEditor(spot, onChange) {
     spot.name = e.target.value.trim() || spot.name;
     saveSpots(spots);
     renderSpotNav();
-    renderAnalyseSpotSelect();
   });
 
   document.getElementById("delete-spot-btn")?.addEventListener("click", () => {
@@ -302,7 +294,6 @@ function wireSpotEditor(spot, onChange) {
     }
     renderSpotNav();
     renderSpotEditor(onChange);
-    renderAnalyseSpotSelect();
     onChange();
   });
 
@@ -418,21 +409,6 @@ export async function fetchWindForSpot(spot, opts = {}) {
   return { spot, wind, snapshot, source: outlook.source };
 }
 
-/** @deprecated Use fetchWindForSpot with a spot from loadSpots */
-export async function fetchWindForAnalyseSpot() {
-  const sel = document.getElementById("analyse-spot");
-  const spotId = sel?.value;
-  if (!spotId) throw new Error("Select a spot first");
-  const spot = getSpot(spots, spotId);
-  if (!spot) throw new Error("Spot not found");
-  const status = document.getElementById("wind-fetch-status");
-  return fetchWindForSpot(spot, {
-    statusEl: status,
-    previewEl: document.getElementById("results-container"),
-    updateSharedForm: true,
-  });
-}
-
 export async function loadTidesForSpot(spot) {
   if (!spot) return null;
   lastTides = await fetchTides(spot.lat, spot.lon, {
@@ -460,14 +436,6 @@ export function buildAnalysisContext(spot) {
 export function applySpotEvalToContext(ctx, conditions) {
   if (ctx.spot) ctx.spotEval = evaluateSpot(ctx.spot, conditions, ctx.tides);
   return ctx;
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 // re-export for mutation

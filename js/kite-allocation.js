@@ -6,7 +6,8 @@ import {
   allocateKitesFairly,
   MIN_SUITABLE_SCORE,
 } from "./fair-kite-allocation.js";
-import { recommendKite, scoreKiteForConditions } from "./engine.js";
+import { recommendKite } from "./engine.js";
+import { escapeHtml } from "./dom-safe.js";
 import { formatKt } from "./format.js";
 import { kiteDisplayTitle } from "./quiver-storage.js";
 
@@ -61,24 +62,6 @@ export { MIN_SUITABLE_SCORE };
  * @property {string} bannerHtml
  * @property {string|null} [conflictGuidance]
  */
-
-/**
- * @param {Conditions} conditions
- * @param {Kite[]} kites
- * @param {CalibrationEntry[]} calibration
- * @returns {Array<{ kite: Kite, score: number }>}
- */
-export function scoreAllKites(conditions, kites, calibration = []) {
-  if (!kites?.length) return [];
-
-  const wind = conditions.windSpeed;
-  return kites
-    .map((kite) => ({
-      kite,
-      score: scoreKiteForConditions(conditions, kite, calibration).score,
-    }))
-    .sort((a, b) => b.score - a.score);
-}
 
 /**
  * @param {RiderAllocInput[]} riders
@@ -218,10 +201,3 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
   </div>`;
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

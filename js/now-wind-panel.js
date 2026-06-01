@@ -1,3 +1,4 @@
+import { escapeHtml } from "./dom-safe.js";
 import { formatKt } from "./format.js";
 import { windDialHtml } from "./wind-arrow.js";
 import { windHourStyle } from "./wind-colors.js";
@@ -10,14 +11,6 @@ import { windHourStyle } from "./wind-colors.js";
  * @property {string} source
  * @property {string} [spotName]
  */
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function formatHourLabel(iso) {
   return new Date(iso).toLocaleTimeString([], {
@@ -116,30 +109,6 @@ export function buildNowWindHtml(snapshot, opts = {}) {
         ${footHtml}
       </div>
     </section>`;
-}
-
-/**
- * @param {NowWindSnapshot|null} snapshot
- * @param {{ manualMode?: boolean }} [opts]
- */
-export function renderNowWindPanel(snapshot, opts = {}) {
-  const el = document.getElementById("analyse-wind-slot");
-  if (!el) return;
-  if (!snapshot?.current) {
-    el.classList.add("hidden");
-    el.innerHTML = "";
-    return;
-  }
-  el.classList.remove("hidden");
-  el.innerHTML = buildNowWindHtml(snapshot, { ...opts, embedded: false });
-}
-
-export function clearNowWindPanel() {
-  const el = document.getElementById("analyse-wind-slot");
-  if (el) {
-    el.classList.add("hidden");
-    el.innerHTML = "";
-  }
 }
 
 /**

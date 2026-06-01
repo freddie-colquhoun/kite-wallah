@@ -22,6 +22,7 @@ import {
   isUnderpoweredFeeling,
 } from "./calibration.js";
 import { describeWindVsKiteRange } from "./kite-personal-range.js";
+import { escapeHtml } from "./dom-safe.js";
 import { formatKt } from "./format.js";
 
 /** @typedef {import('./kite-allocation.js').RiderAllocInput} RiderAllocInput */
@@ -222,14 +223,6 @@ function sortRidersByWeight(riders) {
   });
 }
 
-function escapeAllocHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /** @param {KiteAssignment[]} assignments */
 function formatCrewKitLine(assignments) {
   return assignments.map((a) => `${a.name} → ${a.kite.name}`).join(" · ");
@@ -372,17 +365,17 @@ export function buildRiderKiteDisplayHtml(
     if (solo && solo.id !== assign.kite.id) {
       const holder = crewAssignments.find((a) => a.kite.id === solo.id);
       const gap = holder
-        ? ` (${escapeAllocHtml(holder.name)} flies it — heaviest riders pick first)`
+        ? ` (${escapeHtml(holder.name)} flies it — heaviest riders pick first)`
         : solo.size > assign.kite.size + 0.25
           ? " (larger kite went to a heavier rider)"
           : "";
-      soloIdealHtml = `<p class="plan-rider-kite-solo-ideal hint-tight">Solo ideal: ${escapeAllocHtml(solo.name)}${gap}</p>`;
+      soloIdealHtml = `<p class="plan-rider-kite-solo-ideal hint-tight">Solo ideal: ${escapeHtml(solo.name)}${gap}</p>`;
     }
 
     return {
       html: `<p class="plan-rider-kite-fly">
           <span class="plan-rider-kite-fly-label">Fly this</span>
-          <strong class="plan-rider-kite-fly-name">${escapeAllocHtml(assignedName)}</strong>
+          <strong class="plan-rider-kite-fly-name">${escapeHtml(assignedName)}</strong>
           ${fit}
         </p>${flySub}${soloIdealHtml}`,
       isWarn: compromised,
@@ -393,24 +386,24 @@ export function buildRiderKiteDisplayHtml(
     const rentSize = unassigned.rentSize ?? solo?.size;
     const idealLine =
       solo && unassigned.idealSize != null && solo.size >= unassigned.idealSize - 0.5 && !unassigned.soloTakenBy
-        ? `<p class="plan-rider-kite-line"><strong>Solo ideal:</strong> ${escapeAllocHtml(solo.name)}</p>`
+        ? `<p class="plan-rider-kite-line"><strong>Solo ideal:</strong> ${escapeHtml(solo.name)}</p>`
         : rentSize
           ? `<p class="plan-rider-kite-line"><strong>Ideal size:</strong> ~${rentSize}m${windLabel ? ` at ${windLabel} kt` : ""}</p>`
           : "";
 
     /** @type {string[]} */
     const reasons = [];
-    if (kitLine) reasons.push(`In the bag: ${escapeAllocHtml(kitLine)}.`);
+    if (kitLine) reasons.push(`In the bag: ${escapeHtml(kitLine)}.`);
     if (unassigned.soloTakenBy && unassigned.takenKiteName) {
       reasons.push(
-        `${escapeAllocHtml(unassigned.takenKiteName)} is with ${escapeAllocHtml(unassigned.soloTakenBy)} — not free for you.`
+        `${escapeHtml(unassigned.takenKiteName)} is with ${escapeHtml(unassigned.soloTakenBy)} — not free for you.`
       );
     }
     if (unassigned.poorFitKite) {
       const name = unassigned.poorFitKite.name || `${unassigned.poorFitKite.size}m`;
       const score =
         unassigned.poorFitScore != null ? ` (${unassigned.poorFitScore}% need-fit)` : "";
-      reasons.push(`Only ${escapeAllocHtml(name)} left${score} — not safe at this wind for you.`);
+      reasons.push(`Only ${escapeHtml(name)} left${score} — not safe at this wind for you.`);
     }
     if (!reasons.length) reasons.push("No kite left in the bag that works for you.");
 

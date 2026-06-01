@@ -35,7 +35,8 @@ import {
   getSpotsState,
 } from "./spots-ui.js";
 import { getSpot, loadSpots } from "./spots-storage.js";
-import { initPlannerModule, refreshPlanUi, refreshPlanCompareSelect } from "./planner-ui.js";
+import { initPlannerModule, refreshPlanUi } from "./planner-ui.js";
+import { escapeHtml } from "./dom-safe.js";
 import { buildNowWindHtml } from "./now-wind-panel.js";
 import { initNowTab, refreshNowSpotsList, rerunNowSpotAnalyses, rerunAdhocAnalyse } from "./now-tab-ui.js";
 import { rateNowSession, sessionLevelLabel } from "./session-rating.js";
@@ -119,14 +120,6 @@ function activeProfile() {
 
 function persistProfile(/** @type {RiderProfile} */ profile) {
   upsertProfile(state, profile);
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function getConditionsFromForm() {
@@ -633,7 +626,6 @@ function renderProfileEditor() {
   });
 
   wireProfileEditorEvents(profile);
-  refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
 }
 
 function wireProfileEditorEvents(/** @type {RiderProfile} */ profile) {
@@ -698,7 +690,6 @@ function refreshAllFromState() {
   renderProfileNav();
   renderSpotNav();
   refreshPlanUi(state);
-  refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
   refreshQuiverPanel(state);
   renderSessionsPanel(state);
   refreshNowSpotsList(nowTabHandlers);
