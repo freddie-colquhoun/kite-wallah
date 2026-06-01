@@ -60,6 +60,21 @@ let lastPlanContext = null;
 /** @type {RiderPlan[]} */
 let lastPlans = [];
 
+/** @type {AppState|null} */
+let planUiState = null;
+
+/** @param {HTMLElement|null|undefined} el */
+function setTravelBlockVisible(el, visible) {
+  if (!el) return;
+  if (visible) {
+    el.removeAttribute("hidden");
+    el.classList.remove("hidden");
+  } else {
+    el.setAttribute("hidden", "");
+    el.classList.add("hidden");
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -283,8 +298,8 @@ function syncPlanTravelPanel(state) {
   const renting = document.getElementById("plan-travel-renting");
   const isRenting = mode === "renting";
 
-  if (packed) packed.hidden = isRenting;
-  if (renting) renting.hidden = !isRenting;
+  setTravelBlockVisible(packed, !isRenting);
+  setTravelBlockVisible(renting, isRenting);
 
   if (state && !isRenting) renderPlanTravelKites(state);
 }
@@ -296,29 +311,34 @@ function setPlanTravelEnabled(on, state) {
   if (!btn || !options) return;
 
   btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.setAttribute("aria-expanded", on ? "true" : "false");
   btn.textContent = on ? "Travelling: on" : "Travelling: off";
   btn.classList.toggle("plan-travel-enable-btn--on", on);
-  options.hidden = !on;
-  if (hint) hint.hidden = on;
+  setTravelBlockVisible(options, on);
+  setTravelBlockVisible(hint, !on);
 
-  if (on) syncPlanTravelPanel(state);
+  if (on) syncPlanTravelPanel(state ?? planUiState ?? undefined);
 }
 
-/** @param {AppState} state */
-function wirePlanTravelUi(state) {
-  const btn = document.getElementById("plan-travel-enable");
-  if (!btn || btn.dataset.wired === "1") return;
-  btn.dataset.wired = "1";
+function wirePlanTravelUiOnce() {
+  const form = document.getElementById("plan-form");
+  if (!form || form.dataset.planTravelWired === "1") return;
+  form.dataset.planTravelWired = "1";
 
-  btn.addEventListener("click", () => {
-    setPlanTravelEnabled(!isPlanTravelEnabled(), state);
+  form.addEventListener("click", (e) => {
+    const btn = /** @type {HTMLElement|null} */ (e.target)?.closest?.("#plan-travel-enable");
+    if (!btn) return;
+    e.preventDefault();
+    const on = btn.getAttribute("aria-pressed") !== "true";
+    setPlanTravelEnabled(on, planUiState ?? undefined);
   });
 
-  document.querySelectorAll('input[name="plan-travel-mode"]').forEach((el) => {
-    el.addEventListener("change", () => syncPlanTravelPanel(state));
+  form.addEventListener("change", (e) => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    if (t.matches?.('input[name="plan-travel-mode"]')) {
+      syncPlanTravelPanel(planUiState ?? undefined);
+    }
   });
-
-  setPlanTravelEnabled(false, state);
 }
 
 /** @param {AppState} state */
@@ -359,10 +379,12 @@ function applyDayPreset(preset) {
 
 /** @param {AppState} state */
 export function initPlannerModule(state) {
+  planUiState = state;
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
   renderPlanDayPicker(state);
-  wirePlanTravelUi(state);
+  wirePlanTravelUiOnce();
+  setPlanTravelEnabled(false, state);
   syncPlanTravelPanel(state);
 
   document.querySelectorAll("[data-plan-day-preset]").forEach((btn) => {
@@ -1285,9 +1307,10 @@ function wirePlanChat(state, plans, spot) {
 }
 
 export function refreshPlanUi(state) {
+  planUiState = state;
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
-  wirePlanTravelUi(state);
+  wirePlanTravelUiOnce();
   syncPlanTravelPanel(state);
   const keyEl = document.getElementById("plan-openai-key");
   if (keyEl && !keyEl.dataset.loaded) {
