@@ -20,16 +20,59 @@
         </p>
 
         <h2>How it works</h2>
-        <p>
-          Kite Wallah combines <strong>forecast data</strong> (Open-Meteo wind, optional tides), your
-          <strong>spots</strong> (safe wind sectors, tide launch windows), <strong>rider profiles</strong>
-          (weight, sex, ability), a <strong>shared crew quiver</strong>, and <strong>logged sessions</strong>
-          to answer: should we go, when, and which kite?
+        <p class="doc-lead">
+          Kite Wallah answers three questions from the same data you already maintain in the app:
+          <strong>Should we go?</strong> <strong>When is the best window?</strong> <strong>Which kite?</strong>
+          (and on crew days, <strong>who flies what</strong> from one shared bag).
         </p>
+
+        <section class="doc-summary card card-slim" id="summary" aria-labelledby="summary-heading">
+          <h3 id="summary-heading">Brief summary</h3>
+          <p>
+            Think of it as a fixed pipeline — not guesswork and not “AI decides”. Optional chat only
+            <em>explains</em> numbers the code has already calculated.
+          </p>
+          <ol class="doc-summary-steps">
+            <li>
+              <strong>Forecast + spot + rider</strong> — Hourly wind and gusts (Open-Meteo), your launch pin,
+              safe wind directions, optional tide window, each rider’s weight, sex, and ability band.
+            </li>
+            <li>
+              <strong>Is the day worth it?</strong> — Every hour is scored for wind, launch direction, tide, and daylight.
+              Contiguous “powered” hours are ranked; the best block becomes the hero window (e.g. ride 16:00–19:00)
+              and a day verdict: GO, Possible, Maybe, or Skip.
+            </li>
+            <li>
+              <strong>Solo kite pick</strong> — At that window’s average wind and peak gust, each kite in the quiver
+              gets a <strong>0–100% fit score</strong> from the manufacturer chart (adjusted for weight and sex), how gusty
+              the day is, and your past sessions on that kite (and similar sizes). The highest score wins unless
+              high-confidence session history favours another size in the bag.
+            </li>
+            <li>
+              <strong>Crew days (shared bag)</strong> — Each rider still has a solo “ideal” pick, but only
+              <strong>one physical kite each</strong>. Riders are sorted <strong>heaviest first</strong>. Each gets the
+              unused kite closest to their <strong>power target</strong> (chart size for their weight, bumped up if logs
+              say they were underpowered in similar wind). Lighter riders take what’s left, preferring smaller workable
+              sizes. If the only kite left is poor but still rideable, the card says <strong>Use from bag</strong>;
+              <strong>rent</strong> is labelled <strong>last resort</strong>, not the default.
+            </li>
+            <li>
+              <strong>Your sessions</strong> — Logging wind, kite size, spot, and how it felt updates comfort ranges and
+              can raise the minimum size you need near that wind. A short <strong>From your log</strong> line on Plan
+              compares today to your closest past session when that helps — it does not override the maths silently.
+            </li>
+          </ol>
+          <p class="doc-summary-bridge">
+            <strong>Below</strong> is the full backend reference: exact thresholds, formulas, module names, and
+            step-by-step decision trees. Start with <a href="#pipeline">End-to-end pipeline</a> if you want the map;
+            use <a href="#need-score">Need score &amp; thresholds</a> for crew allocation detail.
+          </p>
+        </section>
 
         <nav class="doc-toc" aria-label="Contents">
           <h3>Contents</h3>
           <ol>
+            <li><a href="#summary">Brief summary</a></li>
             <li><a href="#pipeline">End-to-end pipeline</a></li>
             <li><a href="#inputs">Inputs the app uses</a></li>
             <li><a href="#ability">Ability → wind bands</a></li>
@@ -50,6 +93,12 @@
             <li><a href="#ai">AI chat (optional)</a></li>
           </ol>
         </nav>
+
+        <h3 class="doc-detail-heading">Full detail — backend logic, formulas &amp; thresholds</h3>
+        <p class="doc-detail-intro">
+          Everything from here onward matches the current code paths. Section numbers in headings are for reference;
+          the table of contents above is the easiest way to jump around.
+        </p>
 
         <h3 id="pipeline">End-to-end pipeline (single source of truth)</h3>
         <p>
