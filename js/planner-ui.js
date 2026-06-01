@@ -264,7 +264,7 @@ function getPlanCrewAllocationHint() {
   if (travel.enabled && travel.mode === "packed") {
     return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
-  return "Shared quiver: heaviest rider picks first from available kites; lighter riders get smaller sizes. Confidence matters too — see notes when kit is tight.";
+  return "Shared quiver: heaviest rider picks the largest safe kite left, then the next heaviest, and so on. Rig the kite shown as Fly this on each card.";
 }
 
 /**
@@ -749,7 +749,10 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         }
       );
 
-      const bringKit = mergeCrewBringKit(entries.map((e) => e.day.bringKit));
+      const bringKit = mergeCrewBringKit(
+        entries.map((e) => e.day.bringKit),
+        dayAlloc ?? null
+      );
       const bringHtml = bringKit ? renderBringKitHtml(bringKit, date) : "";
 
       const heroHtml = rec
@@ -789,7 +792,12 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
 
       const tipsHtml = renderPlanDayExpectationHtml(sharedTips);
 
-      const ridersHtml = entries
+      const ridersHtml = [...entries]
+        .sort(
+          (a, b) =>
+            (getProfile(state, b.plan.profileId)?.weight ?? 75) -
+            (getProfile(state, a.plan.profileId)?.weight ?? 75)
+        )
         .map(({ plan, day }) => {
           const profile = getProfile(state, plan.profileId);
           const verdict = day.recommendation?.verdict ?? day.dayVerdict;

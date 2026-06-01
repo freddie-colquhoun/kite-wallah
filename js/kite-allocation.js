@@ -2,8 +2,11 @@
  * Assign unique kites when multiple riders share one quiver (Plan + Now).
  */
 
-import { allocateKitesFairly } from "./fair-kite-allocation.js";
-import { recommendKite } from "./engine.js";
+import {
+  allocateKitesFairly,
+  MIN_SUITABLE_SCORE,
+} from "./fair-kite-allocation.js";
+import { recommendKite, scoreKiteForConditions } from "./engine.js";
 import { formatKt } from "./format.js";
 import { kiteDisplayTitle } from "./quiver-storage.js";
 
@@ -12,8 +15,7 @@ import { kiteDisplayTitle } from "./quiver-storage.js";
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
 /** @typedef {ReturnType<typeof recommendKite>} KiteRecommendation */
 
-/** Minimum match % to count as a usable kite for that rider. */
-const MIN_SUITABLE_SCORE = 45;
+export { MIN_SUITABLE_SCORE };
 
 /**
  * @typedef {Object} RiderAllocInput
@@ -71,10 +73,10 @@ export function scoreAllKites(conditions, kites, calibration = []) {
 
   const wind = conditions.windSpeed;
   return kites
-    .map((kite) => {
-      const solo = recommendKite(conditions, [kite], calibration);
-      return { kite, score: solo?.score ?? 0 };
-    })
+    .map((kite) => ({
+      kite,
+      score: scoreKiteForConditions(conditions, kite, calibration).score,
+    }))
     .sort((a, b) => b.score - a.score);
 }
 

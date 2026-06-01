@@ -181,13 +181,33 @@ export function buildSharedDayTips(day, spot, spotNotes, opts = {}) {
 }
 
 /**
- * Merge bring lists from all riders for one day.
- * @param {import('./plan-bring-kit.js').PlanBringKit[]} kits
+ * Kites assigned in Who flies what — always included in the crew pack list.
+ * @param {import('./kite-allocation.js').GroupKiteAllocation|null|undefined} dayAlloc
+ * @returns {import('./engine.js').Kite[]}
  */
-export function mergeCrewBringKit(kits) {
+export function kitesFromDayAllocation(dayAlloc) {
+  if (!dayAlloc?.assignments?.length) return [];
+  return dayAlloc.assignments.map((a) => a.kite).filter(Boolean);
+}
+
+/**
+ * Merge bring lists from all riders for one day, plus crew allocation assignments.
+ * Hourly per-rider bring can omit allocated kites; dayAlloc fixes that.
+ * @param {import('./plan-bring-kit.js').PlanBringKit[]} kits
+ * @param {import('./kite-allocation.js').GroupKiteAllocation|null} [dayAlloc]
+ */
+export function mergeCrewBringKit(kits, dayAlloc = null) {
   const valid = kits.filter(Boolean);
-  if (!valid.length) return null;
-  if (valid.length === 1) return valid[0];
+  const fromAlloc = kitesFromDayAllocation(dayAlloc);
+  /** @type {Map<string, import('./engine.js').Kite>} */
+  const allocById = new Map();
+  for (const kite of fromAlloc) {
+    if (kite?.id) allocById.set(kite.id, kite);
+  }
+  const allocationKites = [...allocById.values()];
+
+  if (!valid.length && !allocationKites.length) return null;
+  if (valid.length === 1 && !allocationKites.length) return valid[0];
 
   /** @type {Map<string, import('./plan-bring-kit.js').PlanBringKit['bring'][0]>} */
   const bringMap = new Map();
@@ -197,9 +217,21 @@ export function mergeCrewBringKit(kits) {
     }
   }
 
+  for (const kite of allocationKites) {
+    if (!kite?.id) continue;
+    if (!bringMap.has(kite.id)) {
+      bringMap.set(kite.id, {
+        id: kite.id,
+        name: kite.name,
+        size: kite.size,
+        note: "Who flies what · rig this",
+      });
+    }
+  }
+
   const rentalBySize = new Map();
   for (const kit of valid) {
-    for (const r of kit.rentalNeeds) {
+    for (const r of kit.rentalNeeds ?? []) {
       const cur = rentalBySize.get(r.size);
       if (!cur || r.ranked.length > cur.ranked.length) rentalBySize.set(r.size, r);
     }
@@ -213,14 +245,16 @@ export function mergeCrewBringKit(kits) {
     headline: bring.length
       ? `Pack ${bring.length} kite${bring.length === 1 ? "" : "s"}: ${names}`
       : "Nothing to pack from the forecast",
-    riskNote: hasGap
-      ? "Rent or borrow any sizes listed below if the bag does not cover everyone."
-      : "Covers the crew for this day based on the picks above.",
+    riskNote: allocationKites.length
+      ? "Includes every kite assigned in Who flies what — plus forecast coverage for the main window."
+      : hasGap
+        ? "Rent or borrow any sizes listed below if the bag does not cover everyone."
+        : "Covers the crew for this day based on the picks above.",
     bring,
-    quiverEmpty: valid.every((k) => k.quiverEmpty),
+    quiverEmpty: valid.length ? valid.every((k) => k.quiverEmpty) : false,
     hasGap,
     rentalNeeds: [...rentalBySize.values()].sort((a, b) => a.size - b.size),
-    hourly: valid[0].hourly,
+    hourly: valid[0]?.hourly ?? [],
   };
 }
 
