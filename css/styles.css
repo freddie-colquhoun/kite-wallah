@@ -3654,6 +3654,13 @@ textarea {
   color: var(--text-muted);
 }
 
+.plan-crew-kit-line {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
 .plan-day-card--crew .plan-day-tips {
   margin: 0;
   border-top: 1px solid var(--border-light);

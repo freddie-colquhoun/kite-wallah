@@ -804,7 +804,8 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
           const kiteDisplay = buildRiderKiteDisplayHtml(
             assign ?? null,
             unassigned ?? null,
-            recR.avgWind
+            recR.avgWind,
+            dayAlloc?.assignments ?? []
           );
 
           return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">

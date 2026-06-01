@@ -21,8 +21,8 @@ import { formatKt } from "./format.js";
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
 
 const MIN_SUITABLE_SCORE = 45;
-/** Heaviest rider may take largest kite with slightly lower score if it matches power need. */
-const MIN_HEAVY_POWER_SCORE = 38;
+/** Heaviest may keep largest kite in bag even when need-score is below usual minimum. */
+const MIN_HEAVY_LARGEST_SCORE = 15;
 
 /**
  * @param {number} windSpeed
@@ -314,11 +314,17 @@ function linkSoloKitesTakenByOthers(unassigned, assignments) {
   for (const u of unassigned) {
     if (!u.soloPick) continue;
     const holder = assignments.find((a) => a.kite.id === u.soloPick.id);
-    if (holder) {
-      u.soloTakenBy = holder.name;
-      u.takenKiteName = holder.kite.name;
-    }
+    if (!holder) continue;
+    const targetSize = u.idealSize ?? u.soloPick.size;
+    if (Math.abs(u.soloPick.size - targetSize) > 0.75) continue;
+    u.soloTakenBy = holder.name;
+    u.takenKiteName = holder.kite.name;
   }
+}
+
+/** @param {KiteAssignment[]} assignments */
+function formatCrewKitLine(assignments) {
+  return assignments.map((a) => `${a.name} → ${a.kite.name}`).join(" · ");
 }
 
 /**
@@ -327,10 +333,19 @@ function linkSoloKitesTakenByOthers(unassigned, assignments) {
  * @param {number|null} [windKt]
  * @returns {{ html: string, isWarn: boolean }|null}
  */
-export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
+export function buildRiderKiteDisplayHtml(
+  assign,
+  unassigned,
+  windKt = null,
+  crewAssignments = []
+) {
   const solo = assign?.soloPick ?? unassigned?.soloPick ?? null;
   const idealLabel = solo?.name ?? null;
   const windLabel = windKt != null ? formatKt(windKt) : null;
+  const kitLine =
+    crewAssignments.length > 0
+      ? formatCrewKitLine(crewAssignments)
+      : "";
 
   if (assign && !unassigned) {
     const assignedName = assign.kite.name;
@@ -341,10 +356,14 @@ export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
         isWarn: false,
       };
     }
+    const sizeNote =
+      solo && assign.kite.size > solo.size + 0.5
+        ? " — largest in the bag for the heaviest rider at this wind."
+        : " — best available from the shared quiver.";
     return {
       html: `<p class="plan-rider-kite-line"><strong>Ideal kite:</strong> ${escapeAllocHtml(idealLabel || assignedName)}</p>
-        <p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> ${escapeAllocHtml(assignedName)}${fit} — best available from the shared quiver.</p>`,
-      isWarn: false,
+        <p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> ${escapeAllocHtml(assignedName)}${fit}${sizeNote}</p>`,
+      isWarn: assign.score < MIN_SUITABLE_SCORE,
     };
   }
 
@@ -366,6 +385,9 @@ export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
 
     /** @type {string[]} */
     const reasons = [];
+    if (kitLine) {
+      reasons.push(`<span class="plan-crew-kit-line">In the bag: ${escapeAllocHtml(kitLine)}.</span>`);
+    }
     if (unassigned.soloTakenBy && unassigned.takenKiteName) {
       reasons.push(
         `<strong>${escapeAllocHtml(unassigned.takenKiteName)}</strong> is assigned to <strong>${escapeAllocHtml(unassigned.soloTakenBy)}</strong> — not free for you.`
@@ -416,11 +438,10 @@ function pickKiteForSharedQuiver(r, usedIds, medianWeight, isHeaviest) {
 
   const preferLarge = weight >= medianWeight;
 
-  if (isHeaviest && preferLarge) {
-    const forPower = available
-      .filter((s) => s.kite.size >= ideal - 1 && s.need >= MIN_HEAVY_POWER_SCORE)
-      .sort((a, b) => b.kite.size - a.kite.size);
-    if (forPower.length) return forPower[0];
+  if (isHeaviest) {
+    const sorted = [...available].sort((a, b) => b.kite.size - a.kite.size);
+    const largest = sorted[0];
+    if (largest && largest.need >= MIN_HEAVY_LARGEST_SCORE) return largest;
   }
 
   const suitable = available.filter((s) => s.need >= MIN_SUITABLE_SCORE);
@@ -490,6 +511,10 @@ export function buildAllocationConflictGuidance(riders, alloc, allKites) {
     lines.push(
       `• One way to decide: ${heaviest.name} (heaviest, ~${heaviest.conditions.riderWeight ?? "?"} kg) takes the largest suitable kite; the more confident of the others takes the next size down; whoever is least comfortable in strong wind rents or uses the smallest spare.`
     );
+  }
+
+  if (alloc.assignments.length) {
+    lines.push(`• Assigned from the bag: ${formatCrewKitLine(alloc.assignments)}.`);
   }
 
   if (hasShortage) {
@@ -630,7 +655,9 @@ export function allocateKitesFairly(riders, allKites) {
       continue;
     }
 
-    if (pick.need < MIN_SUITABLE_SCORE) {
+    const forceHeaviestLargest = i === 0 && pick.need < MIN_SUITABLE_SCORE;
+
+    if (pick.need < MIN_SUITABLE_SCORE && !forceHeaviestLargest) {
       unassigned.push({
         profileId: r.profileId,
         name: r.name,
