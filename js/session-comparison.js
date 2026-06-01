@@ -234,6 +234,61 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
 }
 
 /**
+ * One line for crew "From your logs" — who rode what in similar wind.
+ * @param {string} riderName
+ * @param {CalibrationEntry} entry
+ */
+export function formatCrewPastSessionLine(riderName, entry) {
+  const e = normalizeSessionEntry(entry);
+  const dateLabel = formatSessionDate(sessionStartIso(e));
+  const spotLabel = e.spotName || "a session";
+  const kite = e.kiteName || `${e.kiteSize}m`;
+  const gustPart =
+    e.gustSpeed != null && e.gustSpeed > e.windSpeed
+      ? ` (gusts to ${e.gustSpeed} kt)`
+      : "";
+
+  let howGood = "";
+  if (e.sessionRating != null) {
+    const r = e.sessionRating;
+    const label =
+      r >= 5 ? "epic" : r >= 4 ? "great" : r >= 3 ? "OK" : r >= 2 ? "so-so" : "tough";
+    howGood = ` — ${label} session (${r}/5)`;
+  } else if (e.feeling === "just-right" || e.feeling === "comfortable") {
+    howGood = " — kite felt good";
+  } else {
+    howGood = ` — ${(FEELING_LABELS[e.feeling] || e.feeling).toLowerCase()}`;
+  }
+
+  const dir =
+    e.windDirection && e.windDirection.length <= 3 ? ` ${e.windDirection}` : "";
+
+  return `${riderName} kited at ${spotLabel} in ${e.windSpeed} kt${dir}${gustPart} on ${kite} on ${dateLabel}${howGood}.`;
+}
+
+/**
+ * Best similar log per rider for the crew day brief.
+ * @param {{ name: string, calibration: CalibrationEntry[] }[]} riders
+ * @param {KiteSpot|null} spot
+ * @param {{ windSpeed: number, gustSpeed?: number|null, windDirection?: string }} forecast
+ * @returns {string[]}
+ */
+export function buildCrewPastSessionLines(riders, spot, forecast) {
+  /** @type {string[]} */
+  const lines = [];
+  const seen = new Set();
+
+  for (const rider of riders) {
+    const entry = pickComparisonSession(rider.calibration, spot, forecast);
+    if (!entry || seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    lines.push(formatCrewPastSessionLine(rider.name, entry));
+  }
+
+  return lines;
+}
+
+/**
  * @param {{ windSpeed: number, gustSpeed?: number|null, windDirection?: string }} forecast
  * @param {CalibrationEntry} entry
  * @param {KiteSpot|null} [spot]

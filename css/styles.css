@@ -3626,6 +3626,34 @@ textarea {
   margin: 0;
 }
 
+.plan-day-expect {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-light);
+  background: var(--surface-raised, #fafbfc);
+}
+
+.plan-day-expect-title {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.plan-day-expect-heading {
+  margin: var(--space-sm) 0 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.plan-day-past-log {
+  margin: 0 0 var(--space-xs) var(--space-sm);
+  padding-left: var(--space-sm);
+  border-left: 2px solid var(--accent-muted, #b8d4e8);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .plan-day-card--crew .plan-day-tips {
   margin: 0;
   border-top: 1px solid var(--border-light);

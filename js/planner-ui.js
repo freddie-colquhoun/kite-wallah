@@ -688,6 +688,32 @@ function renderPlanAllocationsSummary(dayAllocations) {
  * @param {import('./spots-storage.js').KiteSpot} spot
  * @param {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} dayAllocations
  */
+
+/** @param {{ title: string, text: string }[]} tips */
+function renderPlanDayExpectationHtml(tips) {
+  if (!tips?.length) return "";
+
+  let body = "";
+  let inLogs = false;
+  for (const s of tips) {
+    if (s.title === "From your logs") {
+      if (!inLogs) {
+        body += `<p class="plan-day-expect-heading"><strong>From your logs</strong></p>`;
+        inLogs = true;
+      }
+      body += `<p class="plan-day-past-log">${escapeHtml(s.text)}</p>`;
+    } else {
+      inLogs = false;
+      body += `<p><strong>${escapeHtml(s.title)}</strong> ${escapeHtml(s.text)}</p>`;
+    }
+  }
+
+  return `<section class="plan-day-expect" aria-label="What to expect on the water">
+    <h4 class="plan-day-expect-title">What to expect on the water</h4>
+    <div class="plan-day-tips-body">${body}</div>
+  </section>`;
+}
+
 function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations) {
   const dates = [...new Set(plans.flatMap((p) => p.days.map((d) => d.date)))].sort();
 
@@ -705,12 +731,23 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       const dayAlloc = dayAllocations.get(date);
 
       const title = lead.planDayTitle ?? { prefix: null, primary: lead.dateLabel };
-      const sharedTips = buildSharedDayTips(lead, spot, [
-        document.getElementById("plan-notes")?.value?.trim(),
-        spot.localKnowledge,
-      ]
-        .filter(Boolean)
-        .join(". "));
+      const sharedTips = buildSharedDayTips(
+        lead,
+        spot,
+        [document.getElementById("plan-notes")?.value?.trim(), spot.localKnowledge]
+          .filter(Boolean)
+          .join(". "),
+        {
+          crewVerdict,
+          riders: entries.map(({ plan }) => {
+            const profile = getProfile(state, plan.profileId);
+            return {
+              name: plan.profileName,
+              calibration: profile?.calibration ?? [],
+            };
+          }),
+        }
+      );
 
       const bringKit = mergeCrewBringKit(entries.map((e) => e.day.bringKit));
       const bringHtml = bringKit ? renderBringKitHtml(bringKit, date) : "";
@@ -750,14 +787,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             </div>
           </div>`;
 
-      const tipsHtml = sharedTips.length
-        ? `<details class="plan-day-tips" open>
-            <summary>What to expect on the water</summary>
-            <div class="plan-day-tips-body">
-              ${sharedTips.map((s) => `<p><strong>${escapeHtml(s.title)}</strong> ${escapeHtml(s.text)}</p>`).join("")}
-            </div>
-          </details>`
-        : "";
+      const tipsHtml = renderPlanDayExpectationHtml(sharedTips);
 
       const ridersHtml = entries
         .map(({ plan, day }) => {
@@ -800,6 +830,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         ${heroHtml}
         ${timeline}
         ${tidesOnce}
+        ${tipsHtml}
         <section class="plan-crew-riders" aria-label="Kite assignment per rider">
           <div class="plan-crew-riders-head">
             <h4 class="plan-crew-riders-title">Who flies what</h4>
@@ -808,7 +839,6 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
           ${renderPlanConflictGuidanceHtml(dayAlloc?.conflictGuidance)}
           <div class="plan-crew-riders-grid">${ridersHtml}</div>
         </section>
-        ${tipsHtml}
         ${bringHtml}
       </article>`;
     })
@@ -953,19 +983,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
         ? `<p class="plan-day-tides">${escapeHtml(day.tideTimes)}</p>`
         : "";
 
-      const tipsHtml = day.tips?.length
-        ? `<details class="plan-day-tips" open>
-            <summary>What to expect on the water</summary>
-            <div class="plan-day-tips-body">
-              ${day.tips
-                .map(
-                  (s) =>
-                    `<p><strong>${escapeHtml(s.title)}</strong> ${escapeHtml(s.text)}</p>`
-                )
-                .join("")}
-            </div>
-          </details>`
-        : "";
+      const tipsHtml = renderPlanDayExpectationHtml(day.tips ?? []);
 
       const bringHtml = day.bringKit ? renderBringKitHtml(day.bringKit, day.date) : "";
 
@@ -1049,7 +1067,7 @@ function renderDayTimeline(day, showNight) {
     .join("");
 
   return `<div class="plan-timeline-wrap">
-    <p class="plan-timeline-caption">Hour of day <span class="plan-timeline-caption-sub">(size = suggested kite)</span></p>
+    <p class="plan-timeline-caption">Hour of day</p>
     <div class="plan-timeline-scroll">
       <div class="plan-timeline-strip">
         <div class="plan-timeline">${cells}</div>
