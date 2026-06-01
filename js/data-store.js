@@ -179,7 +179,7 @@ export async function bootstrapData() {
     applySnapshot(remote.payload);
     remoteVersion = remote.updatedAtMs;
     persistAllLocalCache();
-    setSyncStatus("Shared data (everyone)");
+    setSyncStatusLive();
     window.__schedulePersist = schedulePersist;
     subscribeRemoteChanges();
     wireCloudRecovery();
@@ -200,7 +200,7 @@ export async function bootstrapData() {
       showCloudAlert("save_failed");
     } else {
       persistAllLocalCache();
-      setSyncStatus("Uploaded local data to shared storage");
+      setSyncStatusLive();
     }
   } else {
     installState(localState);
@@ -213,7 +213,7 @@ export async function bootstrapData() {
       showCloudAlert("save_failed");
     } else {
       persistAllLocalCache();
-      setSyncStatus("Shared data (everyone)");
+      setSyncStatusLive();
     }
   }
 
@@ -249,7 +249,7 @@ export async function retryCloudSync() {
   }
 
   persistAllLocalCache();
-  setSyncStatus("Shared data (everyone)");
+  setSyncStatusLive();
   window.dispatchEvent(new CustomEvent("crew-data-updated"));
   return true;
 }
@@ -361,7 +361,7 @@ async function pushSnapshotNow() {
   if (!lastFetchError) {
     cloudIssue = "none";
     hideCloudAlert();
-    setSyncStatus("Shared data (everyone)");
+    setSyncStatusLive();
   }
   return true;
 }
@@ -391,17 +391,31 @@ function subscribeRemoteChanges() {
         persistAllLocalCache();
         cloudIssue = "none";
         hideCloudAlert();
-        setSyncStatus("Updated from shared data");
+        setSyncStatusLive();
         window.dispatchEvent(new CustomEvent("crew-data-updated"));
       }
     )
     .subscribe();
 }
 
+const SYNC_LIVE_HTML = `<span class="sync-live" role="status" aria-label="Live shared data">
+  <span class="sync-live-dot" aria-hidden="true"></span>
+  <span class="sync-live-label">Live shared data</span>
+</span>`;
+
+function setSyncStatusLive() {
+  const el = document.getElementById("sync-status");
+  if (!el) return;
+  el.classList.add("sync-status--live");
+  el.innerHTML = SYNC_LIVE_HTML;
+}
+
 /** @param {string} text */
 function setSyncStatus(text) {
   const el = document.getElementById("sync-status");
-  if (el) el.textContent = text;
+  if (!el) return;
+  el.classList.remove("sync-status--live");
+  el.textContent = text;
 }
 
 /**

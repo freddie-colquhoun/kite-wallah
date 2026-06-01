@@ -7,48 +7,245 @@
     <link rel="stylesheet" href="../css/styles.css" />
   </head>
   <body class="doc-page">
+    <!-- Maintainer: update this page whenever Plan/Now/scoring/allocation logic changes. See AGENTS.md -->
     <div class="app">
       <header class="header doc-header">
         <div class="header-inner">
           <h1><a href="../index.html">Kite Wallah <span data-app-version class="app-version"></span></a></h1>
         </div>
       </header>
-      <main class="doc-main card">
+      <main class="doc-main doc-main--wide card">
+        <p class="doc-maintainer">
+          This page documents the full decision logic in the app. It should be updated whenever recommendation behaviour changes (see <code>AGENTS.md</code> in the repo).
+        </p>
+
         <h2>How it works</h2>
         <p>
-          Kite Wallah helps you decide when and where to kite using your
-          <strong>rider profile</strong> (weight, ability, quiver), your
-          <strong>spots</strong> (safe wind sectors, tide rules), and live
-          <strong>forecast data</strong> from Open-Meteo.
+          Kite Wallah combines <strong>forecast data</strong> (Open-Meteo wind, optional tides), your
+          <strong>spots</strong> (safe wind sectors, tide launch windows), <strong>rider profiles</strong>
+          (weight, sex, ability), a <strong>shared crew quiver</strong>, and <strong>logged sessions</strong>
+          to answer: should we go, when, and which kite?
         </p>
-        <h3>Plan</h3>
+
+        <nav class="doc-toc" aria-label="Contents">
+          <h3>Contents</h3>
+          <ol>
+            <li><a href="#inputs">Inputs the app uses</a></li>
+            <li><a href="#ability">Ability → wind bands</a></li>
+            <li><a href="#hour">Plan: each forecast hour</a></li>
+            <li><a href="#window">Plan: best powered window</a></li>
+            <li><a href="#day-verdict">Plan: day verdict (GO / Skip …)</a></li>
+            <li><a href="#kite-pick">Choosing a kite (core scoring)</a></li>
+            <li><a href="#plan-day">Plan: day kite line &amp; timing</a></li>
+            <li><a href="#hourly">Plan: hourly sizes on the timeline</a></li>
+            <li><a href="#multi">Multi-rider: who flies what</a></li>
+            <li><a href="#travel">Travelling mode</a></li>
+            <li><a href="#bring">What to bring / rent</a></li>
+            <li><a href="#now">Now tab</a></li>
+            <li><a href="#sessions">Sessions &amp; calibration</a></li>
+            <li><a href="#shared">Live shared data</a></li>
+            <li><a href="#ai">AI chat (optional)</a></li>
+          </ol>
+        </nav>
+
+        <h3 id="inputs">1. Inputs the app uses</h3>
+        <ul>
+          <li><strong>Rider profile</strong> — name, weight, sex (adjusts manufacturer wind ranges), ability level, optional skills metadata.</li>
+          <li><strong>Shared quiver</strong> — all kites/boards in the Quiver tab; every rider’s recommendations can use the full list (not a fixed “4 kites per rider” assignment).</li>
+          <li><strong>Sessions</strong> — after you log a session, entries tune comfort ranges per kite (and lightly per size class across brands).</li>
+          <li><strong>Spot</strong> — lat/lon, water type, safe wind sectors (offshore = no-go), optional tide rule (launch only within N hours of high/low).</li>
+          <li><strong>Forecast</strong> — hourly wind speed, gusts, direction; daylight from sun times; tides when available.</li>
+        </ul>
+
+        <h3 id="ability">2. Ability → wind bands</h3>
         <p>
-          Pick riders, a spot, and days. The timeline shows the full-day hourly
-          wind (colour = strength), gusts, wind direction, and cross-hatching when
-          you are outside your tide launch window.           Each day is rated <strong>GO</strong>, <strong>Possible</strong>, <strong>Maybe</strong>, <strong>Probably not</strong>, or <strong>Skip</strong>, with a wind summary and <strong>What to expect on the water</strong> (launch, riding feel, tips). Dimmed hours are outside your tide launch window. Gusty days (e.g. 18 kt gusting 37) are described as gusty  ·  not light wind.
+          Your ability dropdown sets a <strong>personal wind band</strong>: minimum wind you can ride in,
+          maximum before it feels too strong, and how much gust spread you tolerate. Examples:
         </p>
-        <h3>Now</h3>
+        <ul>
+          <li><strong>Competent</strong> — about 12–26 kt, gust spread up to ~9 kt.</li>
+          <li><strong>Intermediate</strong> — about 14–24 kt, tighter gust tolerance.</li>
+          <li><strong>Expert</strong> — wider band and higher gust tolerance.</li>
+        </ul>
         <p>
-          Enter or fetch current wind, then get kite/board suggestions from your
-          quiver and a suitability score.
+          Plan uses these limits for every hour and for the day verdict. The Now tab uses the same bands but with slightly different verdict thresholds (more forgiving for “right now”).
         </p>
-        <h3>Sessions, Quiver &amp; Riders</h3>
+
+        <h3 id="hour">3. Plan: each forecast hour (decision tree)</h3>
+        <p>For every hour in the forecast, the app builds an <strong>hour assessment</strong>:</p>
+        <ol class="doc-tree">
+          <li>
+            <strong>Wind suitability</strong> — score vs ability band (Plan is stricter than Now: bottom of your range is marginal, not “ideal”).
+            <ul>
+              <li>Very gusty (large gust minus average) → score capped, notes say gusty — never called “light wind”.</li>
+              <li>12–13 kt for a competent rider → often marginal even if “rideable”.</li>
+              <li>Verdict per hour: <strong>good</strong>, <strong>marginal</strong>, or <strong>bad</strong>.</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Spot launch</strong> — is wind direction inside your safe sectors? Offshore → not rideable.
+          </li>
+          <li>
+            <strong>Tide rule</strong> (if set) — is this hour inside your launch window around high/low tide? Outside → <strong>tide-blocked</strong> (dimmed on timeline).
+          </li>
+          <li>
+            <strong>Daylight</strong> — after sunset (unless “Include night hours”) → dark, not scorable.
+          </li>
+          <li>
+            <strong>Best kite for that hour</strong> — <code>recommendKite</code> on the active kite list (home quiver, packed bag, or full catalog if renting). Shown as size on the timeline after the plan loads.
+          </li>
+        </ol>
         <p>
-          <strong>Sessions</strong> logs real days on the water (wind, kite, spot) and tunes
-          per-kite comfort ranges. <strong>Quiver</strong> lists your kites and boards
-          (labels, colours, repairs). <strong>Riders</strong> sets weight and experience level.
-          Spots hold coordinates,
-          safe wind sectors, and tide windows.
+          Timeline colours = wind strength. Cross-hatch / dim = outside tide window. Arrow = direction wind blows (toward sea).
         </p>
-        <h3>AI chat (optional)</h3>
+
+        <h3 id="window">4. Plan: best powered window</h3>
+        <p>The hero line <strong>“Ride 16:00–19:00”</strong> is not “any time you’re free” — it’s the best <strong>powered</strong> block:</p>
+        <ol class="doc-tree">
+          <li>Only hours that are rideable (launch OK, tide OK, not dark).</li>
+          <li>Only hours at least <strong>minWind + 2 kt</strong> for your ability (actually powered, not fringe).</li>
+          <li>Group contiguous powered hours into runs of 2+ hours.</li>
+          <li>Score each run: favour steady wind (small dips and low variance), many “good” hours, penalise big gust spread and deep lulls inside the run.</li>
+          <li>Pick the <strong>highest-scoring run</strong> → that becomes <code>avgWind</code>, <code>peakGust</code>, <code>windowLabel</code>.</li>
+        </ol>
         <p>
-          <strong>Ask advisor</strong> on Now and <strong>Ask about this plan</strong> work
-          without payment using built-in rules. Add your own
-          <a href="https://platform.openai.com/api-keys" rel="noopener noreferrer">OpenAI API key</a>
-          under Plan → Options for richer answers (you pay OpenAI directly; key stays in this
-          browser only).
+          Separate logic refines <strong>timing tips</strong> (e.g. “15:00 is a brief spike; 16:00+ is steadier”) by comparing hourly wind inside and outside that window — so advice can be narrower than the wide window shown in the hero.
         </p>
-        <p><a href="../index.html">← Back to app</a></p>
+
+        <h3 id="day-verdict">5. Plan: day verdict (GO / Possible / Maybe / …)</h3>
+        <p>From scorable hours and the powered window:</p>
+        <ol class="doc-tree">
+          <li><strong>Skip</strong> — no rideable hours, or nothing powered enough.</li>
+          <li><strong>Probably not</strong> — mostly marginal / weak powered time.</li>
+          <li><strong>Maybe</strong> — some powered time but thin or very gusty window.</li>
+          <li><strong>Possible</strong> — workable but not a clean window (gusty or few good hours).</li>
+          <li><strong>GO</strong> — solid powered window (typically 2+ good powered hours, average wind in the sweet band). Very gusty windows may downgrade GO → Possible.</li>
+        </ol>
+        <p>
+          Multi-rider days show the <strong>best crew verdict</strong> in the hero (highest of all riders) plus per-rider chips (Fred: GO, Sam: GO).
+        </p>
+
+        <h3 id="kite-pick">6. Choosing a kite (core scoring tree)</h3>
+        <p>Every kite pick (Plan day, Plan hour, Now, allocation) uses the same core engine:</p>
+        <ol class="doc-tree">
+          <li>
+            <strong>Manufacturer chart</strong> — brand/model/size from the catalog, adjusted for rider weight and sex.
+          </li>
+          <li>
+            <strong>Model character</strong> — same size, different models (e.g. Orbit vs Evo) get different effective ranges (freeride vs C-shape, etc.) via <code>kite-character.js</code>.
+          </li>
+          <li>
+            <strong>Session-tuned range</strong> — for each kite:
+            <ul>
+              <li>100% weight: sessions logged on <em>this</em> kite id.</li>
+              <li>~35% weight: same-size sessions on <em>other</em> quiver kites (cross-brand hint).</li>
+              <li>Builds fun min / comfort max / push max from feelings (too small, just right, overpowered, couldn’t ride).</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Score at this wind</strong> — how well current wind sits in the effective range; calibration nudges toward your historical preferred size at similar wind; small boost if high-confidence session data on this kite; character adjust for gusty vs steady days.
+          </li>
+          <li>
+            <strong>Pick highest score</strong> — top kite + alternates; human-readable <strong>reason</strong> line (in/out of range, session-backed, etc.).
+          </li>
+        </ol>
+        <p>
+          <strong>Important:</strong> Recommendations use the <strong>shared quiver</strong> for all riders. Session count on a rider shows how many logs they have — not “number of kites owned.”
+        </p>
+
+        <h3 id="plan-day">7. Plan: day kite line &amp; advice</h3>
+        <p>Using the powered window averages (not a single random hour):</p>
+        <ol class="doc-tree">
+          <li>Run <code>recommendKite</code> on the rider’s kite list for window avg wind + peak gust.</li>
+          <li>If session calibration is <strong>high confidence</strong> with a preferred size, may swap to a closer size in the quiver when it scores nearly as well.</li>
+          <li>Build <strong>kite line</strong> — steady wind vs gusty advice (may suggest smaller kite when gust spread is large).</li>
+          <li><strong>Skip note</strong> — e.g. “Skip before 16:00 — only 12 kt and underpowered” if early hours are weak (shown once under “What to expect”, not repeated per rider).</li>
+          <li><strong>What to expect on the water</strong> — launch, gust handling, crew-level summary; includes “Best time on the water” timing tip when relevant.</li>
+        </ol>
+
+        <h3 id="hourly">8. Plan: hourly sizes on the timeline</h3>
+        <p>After the day plan is built, each scorable hour gets a <strong>size label</strong> (e.g. 10m, 11m):</p>
+        <ul>
+          <li>Run <code>recommendKite</code> at that hour’s exact wind and gust.</li>
+          <li>Green / amber / none = fit quality (in range + score thresholds).</li>
+          <li>Tooltip shows kite name, fit %, gusts, optional alternate.</li>
+        </ul>
+
+        <h3 id="multi">9. Multi-rider: who flies what (fair allocation)</h3>
+        <p>When two or more riders plan the same day at the same spot:</p>
+        <ol class="doc-tree">
+          <li>One shared forecast timeline and hero (crew window).</li>
+          <li>For each rider who isn’t <strong>Skip</strong>, compute wind at the <strong>day window average</strong> (same as their solo day recommendation).</li>
+          <li>
+            <strong>Fair allocation</strong> (shared physical quiver — not renting):
+            <ul>
+              <li>Score every rider against every kite with a <strong>need</strong> score (not just preference): base kite fit + penalties if kite too small vs session history (“too small” / couldn’t ride near this wind) + weight bump for heavy riders.</li>
+              <li>Sort riders by fewest viable kites first (scarcest need gets served first).</li>
+              <li>Assign each kite at most once; prefer highest <strong>necessity</strong> (how much worse their next option is).</li>
+              <li><strong>Fairness note</strong> when solo pick ≠ assigned kite (e.g. heavier rider needs the 12m).</li>
+              <li>If no kite left → “may need to rent” for that rider.</li>
+            </ul>
+          </li>
+          <li>Rider cards show only: name, verdict, assigned kite, need-fit %, fairness note, optional “would pick X if riding alone”, past-session compare.</li>
+          <li>Full wind story and timing live in the hero + “What to expect” — not duplicated in each rider card.</li>
+        </ol>
+
+        <h3 id="travel">10. Travelling mode (Plan setup)</h3>
+        <ul>
+          <li>
+            <strong>We brought kites</strong> — tick only the kites in the bag. All scoring, hourly picks, allocation, and bring-kit use <em>only</em> those ids.
+          </li>
+          <li>
+            <strong>Renting (nothing packed)</strong> — kite list = <strong>full catalog</strong> (all brands/sizes, weight-adjusted). Hourly and day picks are best rental matches; multi-rider does <em>not</em> fight over one physical kite — each rider gets their own catalog pick.
+          </li>
+        </ul>
+
+        <h3 id="bring">11. What to bring / rent (end of day card)</h3>
+        <p>Risk-averse <strong>crew bag</strong> summary after all recommendations:</p>
+        <ol class="doc-tree">
+          <li>Walk every hour with a decent kite pick; collect sizes needed.</li>
+          <li>Add adjacent sizes in your quiver (one up / one down) for gust insurance.</li>
+          <li>On gusty days, bias toward including your smallest packed kite.</li>
+          <li>Merge across riders → union of kites (multi-rider).</li>
+          <li>Where quiver has no good fit at a size → <strong>rental rankings</strong> from catalog (top models per size for that wind).</li>
+        </ol>
+        <p>Shown at the <strong>bottom</strong> of the day card as a consolidated recap.</p>
+
+        <h3 id="now">12. Now tab</h3>
+        <ol class="doc-tree">
+          <li>Current (or manual) wind at selected spot.</li>
+          <li>Same spot rules (sectors, tides) and ability band.</li>
+          <li><code>assessSuitability</code> + <code>recommendKite</code> per selected rider.</li>
+          <li>Verdict: GO / Possible / … (slightly different thresholds than Plan).</li>
+          <li>Multi-rider Now: same fair allocation when several riders selected and spot is rideable.</li>
+        </ol>
+
+        <h3 id="sessions">13. Sessions &amp; calibration</h3>
+        <ul>
+          <li>Logging records wind, kite used, spot, feeling (too small / just right / overpowered / couldn’t ride).</li>
+          <li>Updates rider session count and per-kite comfort statistics.</li>
+          <li>Does <strong>not</strong> permanently remove kites from your list — it tunes scores and ranges.</li>
+          <li>Plan can compare to “3 closest” past sessions when you have history.</li>
+        </ul>
+
+        <h3 id="shared">14. Live shared data</h3>
+        <p>
+          When Supabase is configured, crew quiver, riders, spots, and sessions sync for everyone.
+          A green pulsing dot and <strong>Live shared data</strong> means cloud sync is active.
+          If load fails, the app still opens using this device’s cache; use <strong>Retry</strong> in the banner.
+        </p>
+
+        <h3 id="ai">15. AI chat (optional)</h3>
+        <p>
+          Built-in rules answer basic questions without payment. Optional OpenAI key under Plan → Options
+          powers richer Plan/Now chat; key stays in your browser only.
+        </p>
+
+        <p class="doc-footer-links">
+          <a href="data-sources.html">Data &amp; limits</a>
+          ·
+          <a href="../index.html">← Back to app</a>
+        </p>
       </main>
       <footer class="site-footer">
         <nav class="site-footer-nav" aria-label="Help">

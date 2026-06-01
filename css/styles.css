@@ -84,6 +84,42 @@ textarea {
   color: var(--text-muted);
 }
 
+.sync-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sync-live-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: sync-live-pulse 1.5s ease-in-out infinite;
+}
+
+.sync-live-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #15803d;
+  letter-spacing: 0.02em;
+}
+
+@keyframes sync-live-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.25);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35), 0 0 12px rgba(34, 197, 94, 0.55);
+  }
+}
+
 .crew-login {
   position: fixed;
   inset: 0;
@@ -3800,6 +3836,86 @@ textarea {
   max-width: 40rem;
   margin: var(--space-md) auto var(--space-xl);
   padding: var(--space-lg);
+}
+
+.doc-main--wide {
+  max-width: 46rem;
+}
+
+.doc-maintainer {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.doc-toc {
+  margin: var(--space-md) 0 var(--space-lg);
+  padding: var(--space-md);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.doc-toc h3 {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.doc-toc ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.doc-toc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.doc-toc a:hover {
+  text-decoration: underline;
+}
+
+.doc-tree {
+  margin: var(--space-sm) 0 var(--space-md);
+  padding-left: 1.25rem;
+}
+
+.doc-tree > li {
+  margin-bottom: var(--space-sm);
+}
+
+.doc-tree ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.doc-main code {
+  font-size: 0.8125rem;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+}
+
+.doc-footer-links {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+  font-size: 0.875rem;
+}
+
+.doc-footer-links a {
+  color: var(--accent);
 }
 
 .doc-main h2 {
