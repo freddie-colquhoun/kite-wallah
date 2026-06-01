@@ -254,11 +254,14 @@ function getPlanCrewAllocationHint() {
   return "Shared quiver: assigned by who needs the power (weight + session history), not who enjoys a kite more.";
 }
 
+function isPlanTravelEnabled() {
+  const btn = document.getElementById("plan-travel-enable");
+  return btn?.getAttribute("aria-pressed") === "true";
+}
+
 /** @returns {import('./plan-travel.js').PlanTravelOptions} */
 function getPlanTravelOptionsFromForm() {
-  const details = document.getElementById("plan-travel-details");
-  const enabled = details?.open ?? false;
-  if (!enabled) return defaultPlanTravelOptions();
+  if (!isPlanTravelEnabled()) return defaultPlanTravelOptions();
 
   const modeInput = document.querySelector('input[name="plan-travel-mode"]:checked');
   const mode =
@@ -286,19 +289,36 @@ function syncPlanTravelPanel(state) {
   if (state && !isRenting) renderPlanTravelKites(state);
 }
 
+function setPlanTravelEnabled(on, state) {
+  const btn = document.getElementById("plan-travel-enable");
+  const options = document.getElementById("plan-travel-options");
+  const hint = document.querySelector(".plan-travel-default-hint");
+  if (!btn || !options) return;
+
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.textContent = on ? "Travelling: on" : "Travelling: off";
+  btn.classList.toggle("plan-travel-enable-btn--on", on);
+  options.hidden = !on;
+  if (hint) hint.hidden = on;
+
+  if (on) syncPlanTravelPanel(state);
+}
+
 /** @param {AppState} state */
 function wirePlanTravelUi(state) {
-  const details = document.getElementById("plan-travel-details");
-  if (!details || details.dataset.wired === "1") return;
-  details.dataset.wired = "1";
+  const btn = document.getElementById("plan-travel-enable");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
 
-  details.addEventListener("toggle", () => {
-    if (details.open) syncPlanTravelPanel(state);
+  btn.addEventListener("click", () => {
+    setPlanTravelEnabled(!isPlanTravelEnabled(), state);
   });
 
   document.querySelectorAll('input[name="plan-travel-mode"]').forEach((el) => {
     el.addEventListener("change", () => syncPlanTravelPanel(state));
   });
+
+  setPlanTravelEnabled(false, state);
 }
 
 /** @param {AppState} state */

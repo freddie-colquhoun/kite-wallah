@@ -60,10 +60,22 @@
                 <div id="plan-day-picker"></div>
               </div>
 
-              <details id="plan-travel-details" class="plan-travel-details">
-                <summary class="plan-travel-summary">Travelling</summary>
-                <div class="plan-travel-panel">
-                  <p class="hint hint-tight">Choose what gear this trip uses — packed kites from your quiver, or rent from the shop catalog.</p>
+              <div class="plan-travel-field">
+                <div class="plan-travel-enable-row">
+                  <button
+                    type="button"
+                    id="plan-travel-enable"
+                    class="btn btn-secondary plan-travel-enable-btn"
+                    aria-pressed="false"
+                  >
+                    Travelling: off
+                  </button>
+                  <p class="hint hint-tight plan-travel-default-hint">
+                    Uses your <strong>full quiver</strong> (normal home planning).
+                  </p>
+                </div>
+                <div id="plan-travel-options" class="plan-travel-options" hidden>
+                  <p class="hint hint-tight">Trip mode — choose packed kites or rent from the shop catalog.</p>
                   <fieldset class="plan-travel-mode">
                     <legend class="sr-only">Travel gear</legend>
                     <label class="plan-travel-radio">
@@ -83,7 +95,7 @@
                     <p class="hint hint-tight">No packed kites — Plan will recommend from the <strong>full rental catalog</strong> (weight-adjusted) for each rider.</p>
                   </div>
                 </div>
-              </details>
+              </div>
 
               <details class="form-more">
                 <summary>Options</summary>

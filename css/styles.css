@@ -357,40 +357,40 @@ h2 {
   border: 0;
 }
 
-.plan-travel-details {
+.plan-travel-field {
   margin-top: var(--space-sm);
+}
+
+.plan-travel-enable-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.plan-travel-enable-btn {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.plan-travel-enable-btn--on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.plan-travel-default-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.plan-travel-options {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  overflow: hidden;
-}
-
-.plan-travel-summary {
-  padding: var(--space-sm) var(--space-md);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.plan-travel-summary::-webkit-details-marker {
-  display: none;
-}
-
-.plan-travel-summary::before {
-  content: "▸ ";
-  display: inline-block;
-  transition: transform 0.15s ease;
-}
-
-.plan-travel-details[open] .plan-travel-summary::before {
-  transform: rotate(90deg);
-}
-
-.plan-travel-panel {
-  padding: 0 var(--space-md) var(--space-md);
-  border-top: 1px solid var(--border-light);
+  background: var(--bg);
 }
 
 .plan-travel-mode {
