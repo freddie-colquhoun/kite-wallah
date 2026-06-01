@@ -171,6 +171,64 @@ export function formatSessionCompareCard(forecast, entry) {
 }
 
 /**
+ * One past-session note when it helps explain today's Plan pick (no manual compare toggle).
+ * @param {CalibrationEntry[]} entries
+ * @param {KiteSpot|null} spot
+ * @param {{ windSpeed: number, gustSpeed?: number|null, windDirection?: string }} forecast
+ * @param {{ recommendedKiteSize?: number|null, recommendedKiteName?: string|null }} [opts]
+ * @returns {{ body: string }|null}
+ */
+export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
+  const entry = pickComparisonSession(entries, spot, forecast);
+  if (!entry) return null;
+
+  const e = normalizeSessionEntry(entry);
+  const windDiff = Math.abs(e.windSpeed - forecast.windSpeed);
+  const recSize = opts.recommendedKiteSize;
+  const sizeDiff =
+    recSize != null && e.kiteSize > 0 ? Math.abs(e.kiteSize - recSize) : 0;
+  const sameSpot = Boolean(
+    spot && (e.spotId === spot.id || e.spotName === spot.name)
+  );
+
+  let relevant = false;
+  if (windDiff <= 3) relevant = true;
+  if (sameSpot && windDiff <= 6) relevant = true;
+  if (["too-small", "too-big", "couldnt-ride"].includes(e.feeling) && windDiff <= 6) {
+    relevant = true;
+  }
+  if (sizeDiff >= 1 && windDiff <= 6) relevant = true;
+  if (e.notes?.trim() && sameSpot && windDiff <= 5) relevant = true;
+
+  if (e.gustSpeed != null && forecast.gustSpeed != null && windDiff <= 5) {
+    const spreadNow = gustSpread(forecast.windSpeed, forecast.gustSpeed);
+    const spreadThen = gustSpread(e.windSpeed, e.gustSpeed);
+    if (Math.abs(spreadNow - spreadThen) >= 4) relevant = true;
+  }
+
+  if (!relevant) return null;
+
+  const card = formatSessionCompareCard(forecast, e);
+  let lead = "";
+
+  if (sizeDiff >= 1 && recSize != null) {
+    if (e.kiteSize < recSize - 0.25) {
+      lead = `Today points to more power than your ${e.kiteSize}m log. `;
+    } else if (e.kiteSize > recSize + 0.25) {
+      lead = `Today points to less power than your ${e.kiteSize}m log. `;
+    }
+  } else if (e.feeling === "too-small") {
+    lead = "You were underpowered in similar wind before — ";
+  } else if (e.feeling === "too-big") {
+    lead = "You were overpowered in similar wind before — ";
+  } else if (e.feeling === "couldnt-ride") {
+    lead = "You struggled in similar wind before — ";
+  }
+
+  return { body: `${lead}${card.body}`.replace(/\s+/g, " ").trim() };
+}
+
+/**
  * @param {{ windSpeed: number, gustSpeed?: number|null, windDirection?: string }} forecast
  * @param {CalibrationEntry} entry
  * @param {KiteSpot|null} [spot]

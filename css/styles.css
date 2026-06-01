@@ -3261,6 +3261,15 @@ textarea {
   font-size: 0.875rem;
 }
 
+.plan-session-context {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
 .kite-allocation-warn-item {
   margin-bottom: 0.35rem;
 }

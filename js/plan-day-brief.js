@@ -46,7 +46,7 @@ export function buildPlanDayBrief({ rideable, dayVerdict, suitability, kiteRec, 
   if (kiteRec?.kite) {
     blurbParts.push(`Quiver pick: ${kiteRec.kite.name}.`);
   } else if (!profile.calibration?.length) {
-    blurbParts.push(`Log past sessions under Sessions to compare with real days on the water.`);
+    blurbParts.push(`Log past sessions under Sessions — Plan uses them automatically when they help explain a day.`);
   }
 
   return { coreFacts, suitabilityBlurb: blurbParts.join(" ") };

@@ -66,9 +66,9 @@ function answerPlanLocal(q, ctx) {
   if (/past session|calibration|last time|compared/.test(lower)) {
     const withRec = plan.days.find((d) => d.recommendation);
     if (withRec?.recommendation) {
-      return `Use **Compare to past sessions** on a day card (shows 3 closest logged sessions). Example: ${withRec.dateLabel}  ·  ride ${withRec.recommendation.windowLabel}, avg ${withRec.recommendation.avgWind} kt.`;
+      return `Past sessions are used automatically in scoring. When a logged day is close to the forecast, Plan may show a **From your log** line on that day (e.g. ${withRec.dateLabel}  ·  ${withRec.recommendation.windowLabel}, ~${withRec.recommendation.avgWind} kt).`;
     }
-    return "Log sessions under **Sessions** (spot, date, wind, kite, how it felt) then re-plan, or pick a session in **Compare to past session**.";
+    return "Log sessions under **Sessions** (spot, date, wind, kite, how it felt). Plan uses that history in kite scoring; relevant notes appear on day cards when they explain the pick.";
   }
 
   const profile = profiles?.[0];
@@ -83,7 +83,7 @@ function answerPlanLocal(q, ctx) {
   }
 
   const days = plan.days.map((d) => `${d.dateLabel}: ${d.recommendation?.verdict ?? d.dayVerdict}`).join("; ");
-  return `${days}\n\nAsk about a specific day, gusts, or tides. Use **Compare to past sessions** on each day card. Optional OpenAI key under Plan → Options.`;
+  return `${days}\n\nAsk about a specific day, gusts, or tides. Logged sessions feed recommendations automatically. Optional OpenAI key under Plan → Options.`;
 }
 
 export { formatAssistantReply };

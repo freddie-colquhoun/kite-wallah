@@ -43,10 +43,7 @@ import { windDialHtml } from "./wind-arrow.js";
 import { hasTideLaunchRule } from "./spot-engine.js";
 import { playFortunateSon } from "./fortunate-son.js";
 import { sessionLevelLabel } from "./session-rating.js";
-import {
-  pickTopSimilarSessions,
-  formatSessionCompareCard,
-} from "./session-comparison.js";
+import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
 
@@ -267,6 +264,31 @@ function getPlanCrewAllocationHint() {
     return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
   return "Shared quiver: heaviest rider picks first from available kites; lighter riders get smaller sizes. Confidence matters too — see notes when kit is tight.";
+}
+
+/**
+ * @param {RiderProfile|null|undefined} profile
+ * @param {import('./spots-storage.js').KiteSpot} spot
+ * @param {{ avgWind: number, peakGust?: number|null, windDirection?: string }} rec
+ * @param {{ kite?: { size?: number, name?: string }|null }} [assign]
+ */
+function renderRelevantSessionNoteHtml(profile, spot, rec, assign) {
+  if (!profile?.calibration?.length) return "";
+  const note = buildRelevantSessionNote(
+    profile.calibration,
+    spot,
+    {
+      windSpeed: rec.avgWind,
+      gustSpeed: rec.peakGust ?? null,
+      windDirection: rec.windDirection,
+    },
+    {
+      recommendedKiteSize: assign?.kite?.size ?? null,
+      recommendedKiteName: assign?.kite?.name ?? null,
+    }
+  );
+  if (!note) return "";
+  return `<p class="plan-session-context hint-tight"><strong>From your log:</strong> ${escapeHtml(note.body)}</p>`;
 }
 
 /** @param {string|null|undefined} guidance */
@@ -749,22 +771,13 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       const ridersHtml = entries
         .map(({ plan, day }) => {
           const profile = getProfile(state, plan.profileId);
-          const sessionCount = profile?.calibration?.length ?? 0;
           const verdict = day.recommendation?.verdict ?? day.dayVerdict;
           const assign = dayAlloc?.assignments.find((a) => a.profileId === plan.profileId);
           const unassigned = dayAlloc?.unassigned.find((u) => u.profileId === plan.profileId);
           const recR = day.recommendation;
-
-          const compareHtml =
-            sessionCount > 0 && recR
-              ? `<div class="plan-day-compare plan-day-compare--inline">
-                  <label class="plan-compare-label">Past sessions</label>
-                  <select class="plan-day-compare-select" data-profile-id="${escapeHtml(plan.profileId)}" data-day-date="${escapeHtml(date)}">
-                    <option value="">Off</option>
-                    <option value="similar">3 closest</option>
-                  </select>
-                  <div class="plan-compare-results hidden" aria-live="polite"></div>
-                </div>`
+          const sessionNoteHtml =
+            recR && profile
+              ? renderRelevantSessionNoteHtml(profile, spot, recR, assign)
               : "";
 
           return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">
@@ -777,10 +790,10 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
                 ? `<p class="plan-rider-kite-line"><strong>${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</strong>${assign ? ` <span class="plan-rider-fit">${assign.score}% need-fit</span>` : ""}</p>
                 ${assign?.fairnessNote ? `<p class="plan-rider-fairness">${escapeHtml(assign.fairnessNote)}</p>` : ""}
                 ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="hint-tight plan-rider-solo">Would pick ${escapeHtml(assign.soloPick.name)} if riding alone.</p>` : ""}
-                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}`
+                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
+                ${sessionNoteHtml}`
                 : `<p class="hint-tight">Not worth rigging for this rider today.</p>`
             }
-            ${compareHtml}
           </article>`;
         })
         .join("");
@@ -816,7 +829,7 @@ function renderPlanResultsHtml(plans, spot, showNight, state, dayAllocations) {
     return renderPlanByDay(plans, spot.name, showNight, state, spot, dayAllocations);
   }
   return plans
-    .map((p) => renderRiderPlan(p, spot.name, showNight, state, dayAllocations))
+    .map((p) => renderRiderPlan(p, spot.name, showNight, state, spot, dayAllocations))
     .join("");
 }
 
@@ -886,9 +899,8 @@ function renderBringKitHtml(kit, dayDate) {
 }
 
 /** @param {RiderPlan} plan @param {string} spotName @param {boolean} showNight @param {AppState} state @param {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} [dayAllocations] */
-function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new Map()) {
+function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations = new Map()) {
   const profile = getProfile(state, plan.profileId);
-  const sessionCount = profile?.calibration?.length ?? 0;
 
   const daysHtml = plan.days
     .map((day) => {
@@ -920,6 +932,7 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
               <p class="plan-day-hero-advice">${escapeHtml(cleanCopy(rec.kiteLine))}</p>
               ${rec.timingNote ? `<p class="plan-day-hero-timing">${escapeHtml(cleanCopy(rec.timingNote))}</p>` : ""}
               ${rec.skipNote ? `<p class="plan-day-hero-skip">${escapeHtml(rec.skipNote)}</p>` : ""}
+              ${profile ? renderRelevantSessionNoteHtml(profile, spot, rec, assign) : ""}
             </div>
             <div class="plan-day-hero-aside">
               <div class="plan-day-hero-verdict">${dayVerdictLabel(verdict)}</div>
@@ -961,18 +974,6 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
           </details>`
         : "";
 
-      const compareHtml =
-        sessionCount > 0 && rec
-          ? `<div class="plan-day-compare" data-day-date="${escapeHtml(day.date)}">
-              <label class="plan-compare-label">Compare to past sessions</label>
-              <select class="plan-day-compare-select" data-profile-id="${escapeHtml(plan.profileId)}" data-day-date="${escapeHtml(day.date)}">
-                <option value="">Off</option>
-                <option value="similar">Show 3 closest sessions</option>
-              </select>
-              <div class="plan-compare-results hidden" aria-live="polite"></div>
-            </div>`
-          : "";
-
       const bringHtml = day.bringKit ? renderBringKitHtml(day.bringKit, day.date) : "";
 
       return `
@@ -980,7 +981,6 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
           ${heroHtml}
           ${timeline}
           ${tidesOnce}
-          ${compareHtml}
           ${tipsHtml}
           ${bringHtml}
         </article>`;
@@ -1196,7 +1196,6 @@ function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) 
   const allocSummary = plans.length >= 2 ? "" : renderPlanAllocationsSummary(dayAllocations);
   results.innerHTML = hasPlans ? renderPlanWindLegend(spot) + allocSummary + html : html;
   wirePlanTimelineTips(results);
-  wirePlanDayCompare(results, state, plans, spot);
   results.querySelectorAll(".btn-go-anthem").forEach((btn) => {
     btn.addEventListener("click", () => playFortunateSon());
   });
@@ -1206,53 +1205,6 @@ function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) 
     aiPanel.hidden = !hasPlans;
     if (hasPlans) wirePlanChat(state, plans, spot);
   }
-}
-
-/** @param {HTMLElement} root @param {AppState} state @param {RiderPlan[]} plans @param {import('./spots-storage.js').KiteSpot} spot */
-function wirePlanDayCompare(root, state, plans, spot) {
-  root.querySelectorAll(".plan-day-compare-select").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      const profileId = sel.dataset.profileId;
-      const date = sel.dataset.dayDate;
-      const panel = sel.closest(".plan-day-compare")?.querySelector(".plan-compare-results");
-      if (!panel) return;
-
-      if (sel.value !== "similar") {
-        panel.classList.add("hidden");
-        panel.innerHTML = "";
-        return;
-      }
-
-      const plan = plans.find((p) => p.profileId === profileId);
-      const day = plan?.days.find((d) => d.date === date);
-      const profile = getProfile(state, profileId);
-      const forecast = day?.recommendation?.forecast;
-
-      if (!profile?.calibration?.length || !forecast) {
-        panel.classList.remove("hidden");
-        panel.innerHTML = `<p class="hint">Log sessions under Sessions to compare.</p>`;
-        return;
-      }
-
-      const top = pickTopSimilarSessions(profile.calibration, spot, forecast, 3);
-      if (!top.length) {
-        panel.classList.remove("hidden");
-        panel.innerHTML = `<p class="hint">No past sessions close to this wind  ·  log more at similar speeds.</p>`;
-        return;
-      }
-
-      panel.classList.remove("hidden");
-      panel.innerHTML = top
-        .map((entry) => {
-          const card = formatSessionCompareCard(forecast, entry);
-          return `<div class="plan-compare-card">
-            <p class="plan-compare-card-title">${escapeHtml(card.title)}</p>
-            <p class="plan-compare-card-body">${escapeHtml(card.body)}</p>
-          </div>`;
-        })
-        .join("");
-    });
-  });
 }
 
 function wirePlanChat(state, plans, spot) {
