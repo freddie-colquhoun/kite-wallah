@@ -38,6 +38,7 @@ import { getSpot, loadSpots } from "./spots-storage.js";
 import { initPlannerModule, refreshPlanUi } from "./planner-ui.js";
 import { escapeHtml } from "./dom-safe.js";
 import { buildNowWindHtml } from "./now-wind-panel.js";
+import { initLiveStatus } from "./live-status.js";
 import { initNowTab, refreshNowSpotsList, rerunNowSpotAnalyses, rerunAdhocAnalyse } from "./now-tab-ui.js";
 import { rateNowSession, sessionLevelLabel } from "./session-rating.js";
 import { assessTideLaunchWindow, hasTideLaunchRule } from "./spot-engine.js";
@@ -762,5 +763,6 @@ void (async () => {
 
   state = bootState;
   updateSyncStatusDisplay();
+  initLiveStatus();
   startApp();
 })();

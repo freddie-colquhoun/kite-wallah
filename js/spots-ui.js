@@ -15,6 +15,7 @@ import { formatCoord } from "./format.js";
 import { initSpotMap, setSpotMapPosition, destroySpotMap, roundCoord } from "./spot-map.js";
 import { fetchTides, findNearestNoaaStation } from "./tides.js";
 import { evaluateSpot } from "./spot-engine.js";
+import { markWindFetched, markTidesFetched } from "./live-status.js";
 
 /** @typedef {import('./spots-storage.js').KiteSpot} KiteSpot */
 
@@ -311,6 +312,7 @@ function wireSpotEditor(spot, onChange) {
         tidePreference: spot.tidePreference,
       });
       display.textContent = lastTides.summary;
+      markTidesFetched(lastTides.source ?? "Tides");
       saveSpots(spots);
     } catch (e) {
       display.textContent = e.message;
@@ -406,6 +408,11 @@ export async function fetchWindForSpot(spot, opts = {}) {
   const statusText = `${wind.windSpeed} kt ${wind.windDirection}${wind.gustSpeed ? `, gusting ${wind.gustSpeed}` : ""}`;
   if (statusEl) statusEl.textContent = statusText;
 
+  markWindFetched(
+    outlook.source,
+    outlook.current?.fetchedAt ?? outlook.current?.time ?? null
+  );
+
   return { spot, wind, snapshot, source: outlook.source };
 }
 
@@ -415,6 +422,7 @@ export async function loadTidesForSpot(spot) {
     noaaStationId: spot.noaaStationId,
     tidePreference: spot.tidePreference,
   });
+  if (lastTides?.source) markTidesFetched(lastTides.source);
   return lastTides;
 }
 

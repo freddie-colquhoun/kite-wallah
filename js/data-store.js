@@ -479,37 +479,22 @@ function subscribeRemoteChanges() {
     .subscribe();
 }
 
-const SYNC_LIVE_HTML = `<span class="sync-live" role="status" aria-label="Live shared data">
-  <span class="sync-live-dot" aria-hidden="true"></span>
-  <span class="sync-live-label">Live shared data</span>
-</span>`;
-
 function setSyncStatusLive() {
-  const el = document.getElementById("sync-status");
-  if (!el) return;
-  el.classList.add("sync-status--live");
-  el.innerHTML = SYNC_LIVE_HTML;
+  refreshLiveStatusFromStore();
 }
 
-/** @param {string} text */
-function setSyncStatus(text) {
-  const el = document.getElementById("sync-status");
-  if (!el) return;
-  el.classList.remove("sync-status--live");
-  el.textContent = text;
+/** @param {string} _text */
+function setSyncStatus(_text) {
+  refreshLiveStatusFromStore();
+}
+
+function refreshLiveStatusFromStore() {
+  window.dispatchEvent(new CustomEvent("live-status-refresh"));
 }
 
 /** Re-apply header sync UI from current mode (call after app start). */
 export function updateSyncStatusDisplay() {
-  if (mode === "cloud" && cloudIssue === "none") {
-    setSyncStatusLive();
-  } else if (mode === "local") {
-    setSyncStatus("Saved on this device only");
-  } else if (cloudIssue === "load_failed") {
-    setSyncStatus("Could not reach shared data");
-  } else if (cloudIssue === "save_failed") {
-    setSyncStatus("Save failed");
-  }
+  refreshLiveStatusFromStore();
 }
 
 /**

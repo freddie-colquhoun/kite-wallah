@@ -48,6 +48,7 @@ import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
 import { escapeHtml } from "./dom-safe.js";
+import { markWindFetched, markTidesFetched } from "./live-status.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
 /** @typedef {import('./storage.js').AppState} AppState */
@@ -536,6 +537,9 @@ async function runPlan(state) {
       })),
       fetchSunSchedule(spot.lat, spot.lon, forecastDays),
     ]);
+
+    markWindFetched(wind.source ?? "Forecast", new Date().toISOString());
+    if (tides.source) markTidesFetched(tides.source);
 
     await loadCatalog();
 
