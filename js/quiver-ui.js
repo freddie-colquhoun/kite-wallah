@@ -242,10 +242,24 @@ function openKiteEditor(kiteId) {
     <div class="card quiver-editor-card">
       <h2 class="quiver-editor-title">${k ? "Edit kite" : "Add kite"}</h2>
       <form id="quiver-kite-form">
-        <div class="inline-form kite-form quiver-catalog-row">
-          <input type="text" id="qk-brand" list="quiver-brand-list" placeholder="Brand" value="${escapeAttr(k?.brand)}" autocomplete="off" />
-          <input type="text" id="qk-model" list="quiver-model-list" placeholder="Model" value="${escapeAttr(k?.model)}" autocomplete="off" />
-          <select id="qk-size"><option value="">Size</option></select>
+        <div class="quiver-catalog-picks field-row field-row-tight">
+          <div class="field field-flush">
+            <label for="qk-brand-select">Brand</label>
+            <select id="qk-brand-select"><option value="">Please select…</option></select>
+          </div>
+          <div class="field field-flush">
+            <label for="qk-model-select">Model</label>
+            <select id="qk-model-select"><option value="">Please select…</option></select>
+          </div>
+          <div class="field field-flush">
+            <label for="qk-size">Size (m)</label>
+            <select id="qk-size"><option value="">Please select…</option></select>
+          </div>
+        </div>
+        <p class="hint hint-tight">Or type any brand / model below if it is not in the list.</p>
+        <div class="quiver-catalog-type field-row field-row-tight">
+          <input type="text" id="qk-brand" list="quiver-brand-list" placeholder="Type brand" value="${escapeAttr(k?.brand)}" autocomplete="off" />
+          <input type="text" id="qk-model" list="quiver-model-list" placeholder="Type model" value="${escapeAttr(k?.model)}" autocomplete="off" />
         </div>
         <datalist id="quiver-brand-list"></datalist>
         <datalist id="quiver-model-list"></datalist>
@@ -418,45 +432,49 @@ function wireKiteEditor(k) {
 
   const brandEl = document.getElementById("qk-brand");
   const modelEl = document.getElementById("qk-model");
+  const brandSelect = document.getElementById("qk-brand-select");
+  const modelSelect = document.getElementById("qk-model-select");
   const sizeEl = document.getElementById("qk-size");
   const specPreview = document.getElementById("qk-spec-preview");
 
-  loadCatalog().then(() => {
-    const bl = document.getElementById("quiver-brand-list");
-    if (bl) bl.innerHTML = getBrands().map((b) => `<option value="${escapeHtml(b)}">`).join("");
-    if (k?.brand && k?.model) {
-      modelEl.value = k.model;
-      const sizes = getSizes(k.brand, k.model);
-      sizeEl.innerHTML =
-        '<option value="">Size</option>' +
-        sizes.map((s) => `<option value="${s}" ${s === k.size ? "selected" : ""}>${s}m</option>`).join("");
-      pendingKiteSpec = {
-        brand: k.brand,
-        model: k.model,
-        size: k.size,
-        type: k.type,
-        style: k.style,
-        windRange: k.windRange,
-        weightRef: k.weightRef,
-        source: k.specsSource,
-      };
-    }
-  });
-
-  brandEl?.addEventListener("input", () => {
-    pendingKiteSpec = null;
-    document.getElementById("quiver-model-list").innerHTML = getModels(brandEl.value)
-      .map((m) => `<option value="${escapeHtml(m)}">`)
+  function fillSelect(select, options, placeholder, current) {
+    if (!select) return;
+    const opts = options
+      .map(
+        (o) =>
+          `<option value="${escapeAttr(o)}" ${o === current ? "selected" : ""}>${escapeHtml(o)}</option>`
+      )
       .join("");
-    sizeEl.innerHTML = '<option value="">Size</option>';
-  });
-  modelEl?.addEventListener("input", () => {
-    pendingKiteSpec = null;
-    const sizes = getSizes(brandEl.value, modelEl.value);
-    sizeEl.innerHTML =
-      '<option value="">Size</option>' + sizes.map((s) => `<option value="${s}">${s}m</option>`).join("");
-  });
-  sizeEl?.addEventListener("change", async () => {
+    select.innerHTML = `<option value="">${placeholder}</option>${opts}`;
+  }
+
+  function syncBrandFromSelect() {
+    if (!brandSelect || !brandEl) return;
+    if (brandSelect.value) {
+      brandEl.value = brandSelect.value;
+      fillSelect(modelSelect, getModels(brandSelect.value), "Please select…", modelEl?.value || "");
+      const bl = document.getElementById("quiver-model-list");
+      if (bl) {
+        bl.innerHTML = getModels(brandSelect.value)
+          .map((m) => `<option value="${escapeHtml(m)}">`)
+          .join("");
+      }
+    }
+  }
+
+  function refreshSizeOptions(brand, model, selectedSize) {
+    if (!sizeEl) return;
+    const sizes = getSizes(brand, model);
+    const opts = sizes
+      .map(
+        (s) =>
+          `<option value="${s}" ${selectedSize === s ? "selected" : ""}>${s}m</option>`
+      )
+      .join("");
+    sizeEl.innerHTML = `<option value="">Please select…</option>${opts}`;
+  }
+
+  async function lookupSpecs() {
     const brand = brandEl.value.trim();
     const model = modelEl.value.trim();
     const size = Number(sizeEl.value);
@@ -479,6 +497,77 @@ function wireKiteEditor(k) {
         source: "manual",
       };
     }
+  }
+
+  loadCatalog().then(() => {
+    const brands = getBrands();
+    fillSelect(brandSelect, brands, "Please select…", k?.brand || "");
+    const bl = document.getElementById("quiver-brand-list");
+    if (bl) bl.innerHTML = brands.map((b) => `<option value="${escapeHtml(b)}">`).join("");
+
+    if (k?.brand) {
+      if (brands.includes(k.brand)) brandSelect.value = k.brand;
+      fillSelect(modelSelect, getModels(k.brand), "Please select…", k.model || "");
+      const ml = document.getElementById("quiver-model-list");
+      if (ml) {
+        ml.innerHTML = getModels(k.brand)
+          .map((m) => `<option value="${escapeHtml(m)}">`)
+          .join("");
+      }
+      if (k.model) {
+        if (getModels(k.brand).includes(k.model)) modelSelect.value = k.model;
+        refreshSizeOptions(k.brand, k.model, k.size);
+      }
+      pendingKiteSpec = {
+        brand: k.brand,
+        model: k.model,
+        size: k.size,
+        type: k.type,
+        style: k.style,
+        windRange: k.windRange,
+        weightRef: k.weightRef,
+        source: k.specsSource,
+      };
+    }
+  });
+
+  brandSelect?.addEventListener("change", () => {
+    pendingKiteSpec = null;
+    syncBrandFromSelect();
+    modelEl.value = "";
+    modelSelect.value = "";
+    sizeEl.innerHTML = '<option value="">Please select…</option>';
+  });
+
+  modelSelect?.addEventListener("change", () => {
+    pendingKiteSpec = null;
+    if (modelSelect.value) modelEl.value = modelSelect.value;
+    refreshSizeOptions(brandEl.value.trim(), modelEl.value.trim(), null);
+  });
+
+  brandEl?.addEventListener("input", () => {
+    pendingKiteSpec = null;
+    const b = brandEl.value.trim();
+    if (getBrands().includes(b)) brandSelect.value = b;
+    else brandSelect.value = "";
+    document.getElementById("quiver-model-list").innerHTML = getModels(b)
+      .map((m) => `<option value="${escapeHtml(m)}">`)
+      .join("");
+    fillSelect(modelSelect, getModels(b), "Please select…", "");
+    sizeEl.innerHTML = '<option value="">Please select…</option>';
+  });
+
+  modelEl?.addEventListener("input", () => {
+    pendingKiteSpec = null;
+    const b = brandEl.value.trim();
+    const m = modelEl.value.trim();
+    if (getModels(b).includes(m)) modelSelect.value = m;
+    else modelSelect.value = "";
+    refreshSizeOptions(b, m, null);
+  });
+
+  sizeEl?.addEventListener("change", () => {
+    void lookupSpecs();
   });
 
   document.getElementById("quiver-kite-form")?.addEventListener("submit", (e) => {

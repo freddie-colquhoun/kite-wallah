@@ -9,6 +9,7 @@ import {
   TIDE_ACCESS_RULE_LABELS,
 } from "./spots-storage.js";
 import { searchLocations, fetchNowWindOutlook } from "./weather.js";
+import { mountWindRosePair, getRoseDirections, setWindRoseSelections } from "./wind-rose.js";
 import { renderWindPreviewInResults } from "./now-wind-panel.js";
 import { formatCoord } from "./format.js";
 import { initSpotMap, setSpotMapPosition, destroySpotMap, roundCoord } from "./spot-map.js";
@@ -137,9 +138,7 @@ export function renderSpotEditor(onChange) {
 
     <div class="card profile-section">
       <h2>Launch & wind</h2>
-      <p class="hint">Tick directions that are safe to launch. Offshore = dangerous.</p>
-      <div class="field"><label>Safe directions</label><div class="compass-grid" id="safe-dirs">${compassCheckboxes("safe", spot.safeDirections)}</div></div>
-      <div class="field"><label>Offshore (dangerous)</label><div class="compass-grid" id="offshore-dirs">${compassCheckboxes("offshore", spot.offshoreDirections)}</div></div>
+      <div id="spot-wind-rose-mount"></div>
       <div class="field"><label>Launch notes</label><input type="text" id="spot-launch-notes" value="${escapeHtml(spot.launchNotes)}" placeholder="e.g. rig on grass, walk 200m" /></div>
     </div>
 
@@ -177,16 +176,17 @@ export function renderSpotEditor(onChange) {
   renderSpotNav();
 }
 
-function compassCheckboxes(prefix, selected) {
-  return COMPASS.map(
-    (d) =>
-      `<label class="compass-chip"><input type="checkbox" name="${prefix}" value="${d}" ${selected.includes(d) ? "checked" : ""} /> ${d}</label>`
-  ).join("");
-}
-
 /** @param {KiteSpot} spot @param {() => void} onChange */
 function wireSpotEditor(spot, onChange) {
   let searchTimer;
+
+  const roseMount = document.getElementById("spot-wind-rose-mount");
+  if (roseMount) {
+    mountWindRosePair(roseMount, {
+      safe: spot.safeDirections,
+      offshore: spot.offshoreDirections,
+    });
+  }
 
   const syncCoordsToInputs = (lat, lon) => {
     document.getElementById("spot-lat").value = roundCoord(lat);
@@ -338,22 +338,21 @@ function applySpotDefaults(defaults) {
   if (defaults.tideWindowHours != null)
     document.getElementById("spot-tide-window").value = defaults.tideWindowHours;
 
-  if (defaults.safeDirections) {
-    document.querySelectorAll('input[name="safe"]').forEach((el) => {
-      el.checked = defaults.safeDirections.includes(el.value);
-    });
-  }
-  if (defaults.offshoreDirections) {
-    document.querySelectorAll('input[name="offshore"]').forEach((el) => {
-      el.checked = defaults.offshoreDirections.includes(el.value);
-    });
+  const roseMount = document.getElementById("spot-wind-rose-mount");
+  if (roseMount && (defaults.safeDirections || defaults.offshoreDirections)) {
+    setWindRoseSelections(
+      roseMount,
+      defaults.safeDirections || [],
+      defaults.offshoreDirections || []
+    );
   }
 }
 
 /** @param {KiteSpot} spot */
 function readSpotForm(spot) {
-  const safe = [...document.querySelectorAll('input[name="safe"]:checked')].map((el) => el.value);
-  const offshore = [...document.querySelectorAll('input[name="offshore"]:checked')].map((el) => el.value);
+  const roseMount = document.getElementById("spot-wind-rose-mount");
+  const safe = roseMount ? getRoseDirections(roseMount, "safe") : [];
+  const offshore = roseMount ? getRoseDirections(roseMount, "offshore") : [];
   return {
     ...spot,
     name: document.getElementById("spot-name").value.trim() || spot.name,

@@ -48,7 +48,8 @@ function findModelKey(brandKey, input) {
 
 export async function loadCatalog() {
   if (catalog) return catalog;
-  const res = await fetch("data/kite-catalog.json");
+  const url = new URL("../data/kite-catalog.json", import.meta.url).href;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Could not load kite catalog");
   catalog = await res.json();
   return catalog;

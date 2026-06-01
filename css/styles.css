@@ -2198,27 +2198,107 @@ textarea:focus {
   color: var(--text-muted);
 }
 
-.compass-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
+.wind-rose-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 
-.compass-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-light);
+@media (max-width: 560px) {
+  .wind-rose-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wind-rose-heading {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.wind-rose-block .hint-tight {
+  margin: 0 0 var(--space-sm);
+}
+
+.wind-rose {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: 0 auto var(--space-sm);
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.wind-rose-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+.wind-rose-sector {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2.5rem;
+  height: 1.85rem;
+  margin-left: -1.25rem;
+  margin-top: -0.925rem;
+  padding: 0;
+  border: 2px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  cursor: pointer;
   background: var(--bg-muted);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transform: rotate(var(--rose-angle)) translateY(-82px) rotate(calc(-1 * var(--rose-angle)));
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.compass-chip:has(input:checked) {
+.wind-rose-sector:hover {
   border-color: var(--accent);
-  background: var(--accent-light);
+}
+
+.wind-rose--safe .wind-rose-sector.is-on {
+  background: var(--good-bg);
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.wind-rose--offshore .wind-rose-sector.is-on {
+  background: var(--bad-bg);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.wind-rose-summary {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.quiver-catalog-picks select,
+.quiver-catalog-type input {
+  width: 100%;
+}
+
+.quiver-catalog-picks {
+  margin-bottom: var(--space-sm);
+}
+
+.quiver-catalog-type {
+  margin-bottom: var(--space-md);
 }
 
 .search-results {

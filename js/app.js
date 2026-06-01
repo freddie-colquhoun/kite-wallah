@@ -580,8 +580,8 @@ function renderProfileEditor() {
         </div>
         <div class="field-row">
           <div class="field"><label>Sex</label>
-            <select id="edit-sex">
-              <option value="unspecified" ${profile.sex === "unspecified" ? "selected" : ""}>Prefer not to say</option>
+            <select id="edit-sex" required>
+              <option value="" disabled ${!profile.sex || profile.sex === "unspecified" ? "selected" : ""}>Please select</option>
               <option value="male" ${profile.sex === "male" ? "selected" : ""}>Male</option>
               <option value="female" ${profile.sex === "female" ? "selected" : ""}>Female</option>
             </select>
@@ -626,12 +626,17 @@ function renderProfileEditor() {
 function wireProfileEditorEvents(/** @type {RiderProfile} */ profile) {
   document.getElementById("rider-details-form").addEventListener("submit", (e) => {
     e.preventDefault();
+    const sexVal = document.getElementById("edit-sex").value;
+    if (!sexVal) {
+      alert("Please select sex.");
+      return;
+    }
     const yearsRaw = document.getElementById("edit-years").value;
     Object.assign(profile, {
       name: document.getElementById("edit-name").value.trim() || profile.name,
       weight: Number(document.getElementById("edit-weight").value),
       height: Number(document.getElementById("edit-height").value),
-      sex: document.getElementById("edit-sex").value,
+      sex: sexVal,
       ability: document.getElementById("edit-ability").value,
       yearsRiding: yearsRaw ? Number(yearsRaw) : null,
       preferredStyle: document.getElementById("edit-style").value,
