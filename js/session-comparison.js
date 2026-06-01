@@ -210,8 +210,13 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
   const flyToday = recName || (recSize != null ? `~${recSize}m` : "today's pick");
 
   let opener = "";
+  const sizedUp =
+    recSize != null && e.kiteSize > 0 && recSize >= e.kiteSize + 1;
+
   if (e.feeling === "slightly-underpowered" && windDiff <= 4) {
-    if (recSize != null && Math.abs(e.kiteSize - recSize) <= 0.5) {
+    if (sizedUp) {
+      opener = `You were a little underpowered on ${kite} in similar wind — ${flyToday} is a size up, which should feel stronger. `;
+    } else if (recSize != null && Math.abs(e.kiteSize - recSize) <= 0.5) {
       opener = `You were a little underpowered on ${kite} in similar wind — ${flyToday} may still feel marginal unless you're happy to push it. `;
     } else {
       opener = `You were a little underpowered on ${kite} in similar wind before. `;
@@ -241,7 +246,7 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
  * @returns {SessionLevel}
  */
 export function adjustPlanVerdictForSessionContext(verdict, entries, spot, forecast, opts = {}) {
-  if (verdict !== "go" || !entries?.length) return verdict;
+  if (!entries?.length) return verdict;
 
   const entry = pickComparisonSession(entries, spot, forecast);
   if (!entry) return verdict;
@@ -252,19 +257,43 @@ export function adjustPlanVerdictForSessionContext(verdict, entries, spot, forec
   const recSize = opts.recommendedKiteSize;
   const sameSize =
     recSize != null && e.kiteSize > 0 && Math.abs(e.kiteSize - recSize) <= 0.5;
+  const sizedUp =
+    recSize != null && e.kiteSize > 0 && recSize >= e.kiteSize + 1;
+  const sizedDown =
+    recSize != null && e.kiteSize > 0 && recSize <= e.kiteSize - 1;
+  const similarOrLighterWind = forecast.windSpeed <= e.windSpeed + 2;
 
-  if (e.feeling === "slightly-underpowered") {
-    if (sameSize || recSize == null) {
-      return forecast.windSpeed <= e.windSpeed + 2 ? "maybe" : "possible";
-    }
-    return "possible";
+  /** @param {SessionLevel} level */
+  function boostConfidence(level) {
+    if (level === "probably-not" || level === "maybe") return "possible";
+    if (level === "possible") return "go";
+    return level;
   }
 
+  if (e.feeling === "slightly-underpowered") {
+    if (sizedUp && similarOrLighterWind) {
+      return boostConfidence(verdict);
+    }
+    if (sizedUp) return verdict;
+
+    if (verdict !== "go") return verdict;
+
+    if (sameSize || recSize == null) {
+      return similarOrLighterWind ? "maybe" : "possible";
+    }
+    if (sizedDown) return "possible";
+    return verdict;
+  }
+
+  if (verdict !== "go") return verdict;
+
   if (e.feeling === "underpowered-rideable" || e.feeling === "too-small") {
+    if (sizedUp && similarOrLighterWind) return "possible";
     return sameSize ? "maybe" : "possible";
   }
 
   if (e.feeling === "very-underpowered" || e.feeling === "couldnt-ride") {
+    if (sizedUp && similarOrLighterWind) return "possible";
     return forecast.windSpeed > e.windSpeed ? "maybe" : "probably-not";
   }
 
