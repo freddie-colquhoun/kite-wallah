@@ -17,6 +17,7 @@ import {
 } from "./wind-session-copy.js";
 import { computeRideableWindWindow } from "./plan-recommendation.js";
 import { buildPlanKitePick } from "./plan-kite-algorithm.js";
+import { buildPlanTimingTips } from "./plan-window-commentary.js";
 import { cleanCopy } from "./copy-format.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
@@ -391,23 +392,26 @@ function buildPlanDayGuide(profile, riderKites, spot, spotNotes, scorable, ridea
     return { recommendation: null, tips: [] };
   }
 
+  const { tips: timingTips, refinedRideable } = buildPlanTimingTips(scorable, rideable, limits);
+  const effectiveRideable = refinedRideable ?? rideable;
+
   const conditions = profileToConditions(
     profile,
     spotNotes,
-    rideable.avgWind,
-    rideable.peakGust,
-    rideable.windDirection,
+    effectiveRideable.avgWind,
+    effectiveRideable.peakGust,
+    effectiveRideable.windDirection,
     spot.waterType
   );
   const spotEval = evaluateSpot(spot, conditions, null);
   const suitability = assessSuitability(conditions, profile.calibration, spotEval);
-  const adjusted = applyPlanWindVerdict(suitability, rideable.avgWind, rideable.peakGust);
+  const adjusted = applyPlanWindVerdict(suitability, effectiveRideable.avgWind, effectiveRideable.peakGust);
   suitability.notes = adjusted.notes;
   suitability.verdict = adjusted.verdict;
   suitability.score = adjusted.score;
 
   const { kiteRec, kiteLine, dayVerdict } = buildPlanKitePick({
-    rideable,
+    rideable: effectiveRideable,
     kites: riderKites,
     calibration: profile.calibration,
     profile,
@@ -417,32 +421,36 @@ function buildPlanDayGuide(profile, riderKites, spot, spotNotes, scorable, ridea
     scorable,
   });
 
-  const spread = gustSpread(rideable.avgWind, rideable.peakGust);
+  const spread = gustSpread(effectiveRideable.avgWind, effectiveRideable.peakGust);
   const recommendation = {
     verdict: dayVerdict,
-    windowLabel: rideable.label,
-    avgWind: rideable.avgWind,
-    peakGust: rideable.peakGust,
-    peakWind: rideable.peakWind,
+    windowLabel: effectiveRideable.label,
+    avgWind: effectiveRideable.avgWind,
+    peakGust: effectiveRideable.peakGust,
+    peakWind: effectiveRideable.peakWind,
     gustSpread: spread,
-    windDirection: rideable.windDirection,
-    kiteName: kiteRec?.kite?.name ?? "-",
+    windDirection: effectiveRideable.windDirection,
+    kiteName: kiteRec?.kite?.name ?? "Add kites on the Quiver tab",
     kiteLine,
-    skipNote: buildSkipNoteForPlan(scorable, rideable, limits),
+    skipNote: buildSkipNoteForPlan(scorable, effectiveRideable, limits),
+    timingNote: timingTips[0]?.text ?? null,
     forecast: {
-      windSpeed: rideable.avgWind,
-      gustSpeed: rideable.peakGust,
-      windDirection: rideable.windDirection,
+      windSpeed: effectiveRideable.avgWind,
+      gustSpeed: effectiveRideable.peakGust,
+      windDirection: effectiveRideable.windDirection,
     },
   };
 
-  const skipTitles = new Set(["Your spot", "How confident are we?"]);
-  const tips = describeConditions(conditions, suitability, profile.calibration, {
-    spot,
-    spotEval,
-  })
-    .filter((s) => !skipTitles.has(s.title))
-    .map((s) => ({ ...s, text: cleanCopy(s.text) }));
+  const skipTitles = new Set(["Your spot", "How confident are we?", "On the water"]);
+  const tips = [
+    ...timingTips.map((s) => ({ ...s, text: cleanCopy(s.text) })),
+    ...describeConditions(conditions, suitability, profile.calibration, {
+      spot,
+      spotEval,
+    })
+      .filter((s) => !skipTitles.has(s.title))
+      .map((s) => ({ ...s, text: cleanCopy(s.text) })),
+  ];
 
   if (spotEval?.windDirectionStatus === "bad") {
     tips.unshift({

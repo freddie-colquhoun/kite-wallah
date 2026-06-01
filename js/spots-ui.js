@@ -5,7 +5,6 @@ import {
   saveSettings,
   createEmptySpot,
   getSpot,
-  COMPASS,
   TIDE_ACCESS_RULE_LABELS,
 } from "./spots-storage.js";
 import { searchLocations, fetchNowWindOutlook } from "./weather.js";

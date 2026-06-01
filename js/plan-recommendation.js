@@ -108,12 +108,26 @@ function finalizeRunSummary(run) {
 
 /** @param {HourAssessment[]} run @param {{ minWind: number, maxGustSpread: number }} limits */
 function scorePoweredRun(run, limits) {
-  const avgWind = run.reduce((s, h) => s + h.windSpeed, 0) / run.length;
+  const winds = run.map((h) => h.windSpeed);
+  const avgWind = winds.reduce((s, h) => s + h, 0) / run.length;
+  const minWind = Math.min(...winds);
   const peakGust = Math.max(...run.map((h) => h.gustSpeed ?? h.windSpeed));
   const spread = peakGust - avgWind;
   const good = run.filter((h) => h.verdict === "good").length;
   const gustPenalty = spread > limits.maxGustSpread ? (spread - limits.maxGustSpread) * 3 : 0;
-  return avgWind * 12 + good * 18 + run.length * 4 - gustPenalty;
+  const dipPenalty = (avgWind - minWind) * 6;
+  const variance =
+    winds.reduce((s, w) => s + (w - avgWind) ** 2, 0) / winds.length;
+  const steadyBonus = minWind >= limits.minWind + 3 ? 12 : 0;
+  return (
+    avgWind * 12 +
+    good * 18 +
+    run.length * 4 +
+    steadyBonus -
+    gustPenalty -
+    dipPenalty -
+    variance * 2
+  );
 }
 
 /**

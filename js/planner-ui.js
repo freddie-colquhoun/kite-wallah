@@ -488,6 +488,7 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
               ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="plan-day-hero-kite-note hint-tight">Shared quiver: ${escapeHtml(plan.profileName)} gets this kite (solo pick was ${escapeHtml(assign.soloPick.name)}).</p>` : ""}
               ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
               <p class="plan-day-hero-advice">${escapeHtml(cleanCopy(rec.kiteLine))}</p>
+              ${rec.timingNote ? `<p class="plan-day-hero-timing">${escapeHtml(cleanCopy(rec.timingNote))}</p>` : ""}
               ${rec.skipNote ? `<p class="plan-day-hero-skip">${escapeHtml(rec.skipNote)}</p>` : ""}
             </div>
             <div class="plan-day-hero-aside">
@@ -517,7 +518,7 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
         : "";
 
       const tipsHtml = day.tips?.length
-        ? `<details class="plan-day-tips">
+        ? `<details class="plan-day-tips" open>
             <summary>What to expect on the water</summary>
             <div class="plan-day-tips-body">
               ${day.tips

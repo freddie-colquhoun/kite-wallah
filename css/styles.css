@@ -2658,6 +2658,13 @@ textarea {
   color: var(--text-muted);
 }
 
+.plan-day-hero-timing {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #475569);
+}
+
 .plan-day-hero-skip {
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
