@@ -90,7 +90,7 @@ textarea {
   color: var(--text-muted);
 }
 
-/* Header status pills — Weather + Your data */
+/* Header status pills — live weather / live user data */
 .live-status-bar {
   flex-shrink: 0;
 }
@@ -3379,6 +3379,10 @@ textarea {
   margin-top: 0.15rem;
 }
 
+.btn-go-anthem--playing {
+  background: rgba(52, 199, 89, 0.22);
+}
+
 .btn-go-anthem:hover {
   background: var(--accent-soft);
   transform: translateY(-1px);
@@ -3905,6 +3909,66 @@ textarea {
   margin: 0;
   font-size: 0.9375rem;
   line-height: 1.35;
+}
+
+.plan-kite-quiver {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.plan-kite-row {
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-muted);
+}
+
+.plan-kite-row--fly {
+  background: rgba(0, 122, 255, 0.06);
+  border: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+.plan-kite-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.plan-kite-row-name {
+  font-size: 0.9375rem;
+}
+
+.plan-kite-row .wind-bar {
+  margin-top: 0;
+}
+
+.plan-timing-block {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-muted);
+}
+
+.plan-timing-line {
+  margin: 0 0 0.4rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.plan-timing-line:last-child {
+  margin-bottom: 0;
+}
+
+.plan-timing-label {
+  display: inline-block;
+  min-width: 5.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .plan-rider-kite-fly {

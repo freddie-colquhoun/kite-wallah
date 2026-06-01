@@ -1,5 +1,5 @@
 /**
- * Header status: Weather (wind + tides) and Your data (crew sync).
+ * Header status: Live weather data (wind + tides) and Live user data (crew sync).
  */
 
 import { getDataMode, getCloudIssue } from "./data-store.js";
@@ -118,8 +118,8 @@ function renderBar() {
   const crewState = crewChipState();
 
   el.innerHTML = `<div class="live-status-inner" aria-label="Connection status">
-    ${pillHtml("Weather", weatherState, weatherDetail())}
-    ${pillHtml("Your data", crewState, crewDetail())}
+    ${pillHtml("Live weather data", weatherState, weatherDetail())}
+    ${pillHtml("Live user data", crewState, crewDetail())}
   </div>`;
 
   const legacy = document.getElementById("sync-status");

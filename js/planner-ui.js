@@ -34,7 +34,7 @@ import {
   resolveCrewPackedKites,
 } from "./plan-travel.js";
 import { allocateKitesForRiders } from "./kite-allocation.js";
-import { buildRiderKiteDisplayHtml } from "./fair-kite-allocation.js";
+import { buildRiderPlanKitePanelHtml } from "./plan-quiver-bars.js";
 import { formatKt } from "./format.js";
 import {
   windHourStyle,
@@ -43,7 +43,7 @@ import {
 } from "./wind-colors.js";
 import { windDialHtml } from "./wind-arrow.js";
 import { hasTideLaunchRule } from "./spot-engine.js";
-import { playFortunateSon } from "./fortunate-son.js";
+import { isFortunateSonPlaying, playFortunateSon } from "./fortunate-son.js";
 import { sessionLevelLabel } from "./session-rating.js";
 import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
@@ -259,7 +259,7 @@ function getPlanCrewAllocationHint() {
   if (travel.enabled && travel.mode === "packed") {
     return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
-  return "Shared quiver: Ideal = personal best at this wind; Fly this = who rigs what (heaviest picks first from the bag).";
+  return "Shared quiver: wind bars show each kite vs today’s wind; Fly = who rigs what (heaviest picks first from the bag).";
 }
 
 /**
@@ -684,11 +684,14 @@ function renderPlanAllocationsSummary(dayAllocations) {
  */
 
 /** @param {{ title: string, text: string }[]} tips */
+const PLAN_TIMING_TITLES = new Set(["Rideable", "Best window", "Gust pattern"]);
+
 function renderPlanDayExpectationHtml(tips) {
   if (!tips?.length) return "";
 
   let body = "";
   let inLogs = false;
+  let timingBlock = "";
   for (const s of tips) {
     if (s.title === "From your logs") {
       if (!inLogs) {
@@ -696,10 +699,16 @@ function renderPlanDayExpectationHtml(tips) {
         inLogs = true;
       }
       body += `<p class="plan-day-past-log">${escapeHtml(s.text)}</p>`;
+    } else if (PLAN_TIMING_TITLES.has(s.title)) {
+      inLogs = false;
+      timingBlock += `<p class="plan-timing-line"><span class="plan-timing-label">${escapeHtml(s.title)}</span> ${escapeHtml(s.text)}</p>`;
     } else {
       inLogs = false;
       body += `<p><strong>${escapeHtml(s.title)}</strong> ${escapeHtml(s.text)}</p>`;
     }
+  }
+  if (timingBlock) {
+    body = `<div class="plan-timing-block">${timingBlock}</div>${body}`;
   }
 
   return `<section class="plan-day-expect" aria-label="What to expect on the water">
@@ -709,6 +718,14 @@ function renderPlanDayExpectationHtml(tips) {
 }
 
 function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations) {
+  const travel = getPlanTravelOptionsFromForm();
+  migrateProfilesToSharedQuiver(state);
+  const packedKites = travel.enabled
+    ? resolveCrewPackedKites(state, travel)
+    : (state.quiver?.kites ?? []);
+  const spotNotes = document.getElementById("plan-notes")?.value.trim() || "";
+  const notes = [spotNotes, spot.localKnowledge].filter(Boolean).join(". ");
+
   const dates = [...new Set(plans.flatMap((p) => p.days.map((d) => d.date)))].sort();
 
   const daysHtml = dates
@@ -772,7 +789,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
               ${
                 crewVerdict === "go"
                   ? `<div class="plan-day-hero-actions">
-                      <button type="button" class="btn-go-anthem" title="Open Fortunate Son on YouTube"><span class="btn-play-icon" aria-hidden="true">▶</span> Play Fortunate Son</button>
+                      <button type="button" class="btn-go-anthem" title="Play Fortunate Son in the app"><span class="btn-play-icon" aria-hidden="true">▶</span><span class="btn-go-anthem-label">Play Fortunate Son</span></button>
                     </div>`
                   : ""
               }
@@ -782,7 +799,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             <div class="plan-day-hero-body">
               <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
               <p class="plan-day-spot-name">${escapeHtml(spotName)}</p>
-              <p class="plan-day-hero-advice">No solid powered window for the crew this day.</p>
+              <p class="plan-day-hero-advice">No solid powered window this day.</p>
             </div>
             <div class="plan-day-hero-aside">
               <div class="plan-day-hero-verdict">${dayVerdictLabel(crewVerdict)}</div>
@@ -809,12 +826,19 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
               ? renderRelevantSessionNoteHtml(profile, spot, recR, assign)
               : "";
 
-          const kiteDisplay = buildRiderKiteDisplayHtml(
-            assign ?? null,
-            unassigned ?? null,
-            crewWindKt,
-            dayAlloc?.assignments ?? []
-          );
+          const kiteDisplay =
+            profile && (assign || unassigned)
+              ? buildRiderPlanKitePanelHtml(
+                  profile,
+                  packedKites,
+                  crewWindKt,
+                  recR?.peakGust,
+                  notes,
+                  assign ?? null,
+                  unassigned ?? null,
+                  dayAlloc?.assignments ?? []
+                )
+              : null;
 
           return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">
             <header class="plan-rider-day-head">
@@ -967,7 +991,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
               ${
                 verdict === "go"
                   ? `<div class="plan-day-hero-actions">
-                      <button type="button" class="btn-go-anthem" title="Open Fortunate Son on YouTube"><span class="btn-play-icon" aria-hidden="true">▶</span> Play Fortunate Son</button>
+                      <button type="button" class="btn-go-anthem" title="Play Fortunate Son in the app"><span class="btn-play-icon" aria-hidden="true">▶</span><span class="btn-go-anthem-label">Play Fortunate Son</span></button>
                     </div>`
                   : ""
               }
@@ -1233,9 +1257,27 @@ function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) 
   const allocSummary = plans.length >= 2 ? "" : renderPlanAllocationsSummary(dayAllocations);
   results.innerHTML = hasPlans ? renderPlanWindLegend(spot) + allocSummary + html : html;
   wirePlanTimelineTips(results);
+  const syncAnthemButtons = () => {
+    results.querySelectorAll(".btn-go-anthem").forEach((btn) => {
+      const icon = btn.querySelector(".btn-play-icon");
+      const label = btn.querySelector(".btn-go-anthem-label");
+      const playing = isFortunateSonPlaying();
+      btn.classList.toggle("btn-go-anthem--playing", playing);
+      if (icon) icon.textContent = playing ? "❚❚" : "▶";
+      if (label) label.textContent = playing ? "Pause Fortunate Son" : "Play Fortunate Son";
+    });
+  };
   results.querySelectorAll(".btn-go-anthem").forEach((btn) => {
-    btn.addEventListener("click", () => playFortunateSon());
+    btn.addEventListener("click", async () => {
+      await playFortunateSon();
+      syncAnthemButtons();
+    });
   });
+  syncAnthemButtons();
+  if (!results.dataset.anthemWired) {
+    results.dataset.anthemWired = "1";
+    window.addEventListener("fortunate-son-state", syncAnthemButtons);
+  }
 
   const aiPanel = document.getElementById("plan-ai-panel");
   if (aiPanel) {

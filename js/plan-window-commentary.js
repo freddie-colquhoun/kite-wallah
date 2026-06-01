@@ -1,5 +1,5 @@
 /**
- * Hour-by-hour Plan commentary: spikes, lulls, and steadier alternatives.
+ * Hour-by-hour Plan commentary: rideable window vs steadiest block.
  */
 
 import { formatKt } from "./format.js";
@@ -91,6 +91,41 @@ function findSteadiestSubRun(hours, limits, minLen = 2) {
   return candidates[0];
 }
 
+function rideableWindowText(rideable) {
+  const gust =
+    rideable.peakGust != null
+      ? `, gusts to ${formatKt(rideable.peakGust)} kt`
+      : "";
+  const dir = rideable.windDirection ? ` ${rideable.windDirection}` : "";
+  return `${rideable.label} — powered enough to ride (~${formatKt(rideable.avgWind)} kt avg${gust}${dir}).`;
+}
+
+function bestWindowText(rideable, steadier) {
+  const s = steadier.summary;
+  const date = toDateKey(s.startTime);
+  const steadierStart = parseHour(s.startTime);
+  const headlineStart = parseHour(rideable.startTime);
+
+  if (steadierStart > headlineStart) {
+    const early = rideable.hours.filter((h) => parseHour(h.time) < steadierStart);
+    const maxEarly = early.length ? Math.max(...early.map((h) => h.windSpeed)) : 0;
+    const poweredMin = 12;
+    if (maxEarly >= poweredMin + 3) {
+      const maxEarlyHour = early.find((h) => h.windSpeed === maxEarly);
+      const spikeAt = maxEarlyHour
+        ? formatHourLabel(date, parseHour(maxEarlyHour.time))
+        : "earlier";
+      return `${s.label} — steadiest block (${formatKt(s.minWind)}-${formatKt(s.peakWind)} kt for ${s.hourCount} h, ~${formatKt(s.avgWind)} kt avg). ${spikeAt} spikes but does not hold; plan around ${formatHourLabel(date, steadierStart)} onward.`;
+    }
+  }
+
+  if (s.windSpread <= 3 && rideable.peakWind - rideable.avgWind >= 5) {
+    return `${s.label} — steadiest stretch inside the rideable window (${formatKt(s.avgWind)} kt avg, only ${formatKt(s.windSpread)} kt variation).`;
+  }
+
+  return `${s.label} — best 2-hour-style window (${formatKt(s.minWind)}-${formatKt(s.peakWind)} kt, ~${formatKt(s.avgWind)} kt avg).`;
+}
+
 /**
  * @param {HourAssessment[]} scorable
  * @param {RideableWindSummary} rideable
@@ -105,6 +140,11 @@ export function buildPlanTimingTips(scorable, rideable, limits) {
   const hours = rideable.hours;
   const date = toDateKey(hours[0].time);
   const poweredMin = limits.minWind + 2;
+
+  tips.push({
+    title: "Rideable",
+    text: rideableWindowText(rideable),
+  });
 
   const steadier = findSteadiestSubRun(hours, limits, 2);
   const headlineStart = parseHour(rideable.startTime);
@@ -139,27 +179,17 @@ export function buildPlanTimingTips(scorable, rideable, limits) {
         : null;
     }
 
-    if (steadierStart > headlineStart) {
-      const early = hours.filter((h) => parseHour(h.time) < steadierStart);
-      const maxEarly = early.length ? Math.max(...early.map((h) => h.windSpeed)) : 0;
-      const maxEarlyHour = early.find((h) => h.windSpeed === maxEarly);
-
-      tips.push({
-        title: "Best time on the water",
-        text:
-          maxEarlyHour && maxEarly >= poweredMin + 3
-            ? `${formatHourLabel(date, parseHour(maxEarlyHour.time))} briefly hits ${formatKt(maxEarly)} kt, but it does not hold — wind settles from ${s.label} with ${formatKt(s.minWind)}-${formatKt(s.peakWind)} kt for ${s.hourCount} hours. Plan to ride from ${formatHourLabel(date, steadierStart)} onward, not for the short early pulse.`
-            : `The steadiest powered block is ${s.label} (${formatKt(s.avgWind)} kt average, ${formatKt(s.minWind)}-${formatKt(s.peakWind)} kt). The wider ${rideable.label} window includes lighter or gustier hours — aim for ${s.label}.`,
-      });
-    } else if (s.windSpread <= 3 && rideable.peakWind - rideable.avgWind >= 5) {
-      tips.push({
-        title: "Best time on the water",
-        text: `Within ${rideable.label}, ${s.label} is the steadiest stretch (${formatKt(s.avgWind)} kt average, only ${formatKt(s.windSpread)} kt variation). Earlier or later hours in the window are gustier or lighter.`,
-      });
+    const bestText = bestWindowText(rideable, steadier);
+    if (
+      steadierStart > headlineStart ||
+      s.windSpread <= 3 ||
+      s.label !== rideable.label
+    ) {
+      tips.push({ title: "Best window", text: bestText });
     }
   }
 
-  if (!tips.length && hours.length >= 2) {
+  if (!tips.some((t) => t.title === "Best window") && hours.length >= 2) {
     const first = hours[0];
     const second = hours[1];
     if (first.windSpeed >= second.windSpeed + 4 && second.windSpeed < first.windSpeed - 3) {
@@ -170,25 +200,25 @@ export function buildPlanTimingTips(scorable, rideable, limits) {
         const lMin = Math.min(...later.map((h) => h.windSpeed));
         const lMax = Math.max(...later.map((h) => h.windSpeed));
         tips.push({
-          title: "Best time on the water",
-          text: `${formatHourLabel(date, parseHour(first.time))} peaks at ${formatKt(first.windSpeed)} kt then drops to ${formatKt(second.windSpeed)} kt — less than an hour of strong wind. From ${hourRangeLabel(date, lh, lh2)} it holds ${formatKt(lMin)}-${formatKt(lMax)} kt more reliably.`,
+          title: "Best window",
+          text: `${hourRangeLabel(date, lh, lh2)} holds ${formatKt(lMin)}-${formatKt(lMax)} kt more reliably. ${formatHourLabel(date, parseHour(first.time))} peaks at ${formatKt(first.windSpeed)} kt then drops — not a sustained block.`,
         });
       }
     }
   }
 
   const spread = gustSpread(rideable.avgWind, rideable.peakGust);
-  if (spread >= 12 && !tips.some((t) => t.title === "Best time on the water")) {
+  if (spread >= 12 && tips.length === 1) {
     tips.push({
       title: "Gust pattern",
-      text: `Average ${formatKt(rideable.avgWind)} kt but gusts to ${formatKt(rideable.peakGust)} kt across ${rideable.label}. On the water you will feel lulls then sharp surges — size for the average and keep the kite high.`,
+      text: `Average ${formatKt(rideable.avgWind)} kt but gusts to ${formatKt(rideable.peakGust)} kt across ${rideable.label}. Size for the average; expect lulls then sharp surges.`,
     });
   }
 
-  if (!tips.length) {
+  if (!tips.some((t) => t.title === "Best window") && rideable.hourCount >= 2) {
     tips.push({
-      title: "Best time on the water",
-      text: `${rideable.label} holds powered wind (${formatKt(rideable.avgWind)} kt average${rideable.peakGust != null ? `, gusts to ${formatKt(rideable.peakGust)} kt` : ""}). Use the hourly strip above to see when it is strongest.`,
+      title: "Best window",
+      text: `${rideable.label} is the main powered block (${formatKt(rideable.avgWind)} kt average${rideable.peakGust != null ? `, gusts to ${formatKt(rideable.peakGust)} kt` : ""}). Use the hourly strip to spot stronger hours.`,
     });
   }
 

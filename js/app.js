@@ -46,6 +46,7 @@ import { assessTideLaunchWindow, hasTideLaunchRule } from "./spot-engine.js";
 import { windArrowSvg, windBlowToDeg } from "./wind-arrow.js";
 import { getTomorrowDate } from "./planner.js";
 import { formatNum, formatKt } from "./format.js";
+import { renderWindBar } from "./wind-bar.js";
 import { bootstrapData, updateSyncStatusDisplay } from "./data-store.js";
 import { renderResultNotesHtml } from "./result-factors.js";
 
@@ -299,7 +300,11 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
     false;
   const { suitability, boardRec, conditionGuide, spotEval } = analysis;
   const kiteRec = kiteAssignment?.kiteRec ?? analysis.kiteRec;
-  const skipGuideTitles = new Set(["Your spot", "How confident are we?"]);
+  const skipGuideTitles = new Set([
+    "Your spot",
+    "How confident are we?",
+    "Tip for your level",
+  ]);
   const guideFiltered = conditionGuide.filter((b) => !skipGuideTitles.has(b.title));
   const { lastWindSource } = getSpotsState();
   const sessionLevel = rateNowSession(suitability, conditions.windSpeed, suitability.limits, {
@@ -335,8 +340,9 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
           kiteAssignment.soloPick.id !== kiteAssignment.kite.id
         ? `<p class="kite-allocation-note hint-tight">Shared quiver pick (ideal was ${escapeHtml(kiteAssignment.soloPick.name)}).</p>`
         : "";
-    const altHtml = kiteRec.alternatives.length
-      ? `<details class="result-more action-panel"><summary class="action-panel-summary">Other kites in quiver</summary><ul class="notes-list">${kiteRec.alternatives
+    const altList = kiteRec.alternatives ?? analysis.kiteRec?.alternatives ?? [];
+    const altHtml = altList.length
+      ? `<details class="result-more action-panel"><summary class="action-panel-summary">Other kites in quiver</summary><ul class="notes-list">${altList
           .map(
             ({ kite, score, range }) => {
               const fit = describeKiteFitShort(score);
@@ -453,18 +459,6 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
         <div class="explain-steps">${explainHtml}</div>
       </details>
     </div>`;
-}
-
-function renderWindBar(windSpeed, range) {
-  const scaleMin = Math.max(0, range.min - 5);
-  const scaleMax = range.max + 5;
-  const span = scaleMax - scaleMin;
-  return `
-    <div class="wind-bar">
-      <div class="wind-bar-range" style="left:${((range.min - scaleMin) / span) * 100}%;width:${((range.max - range.min) / span) * 100}%"></div>
-      <div class="wind-bar-marker" style="left:${Math.min(100, Math.max(0, ((windSpeed - scaleMin) / span) * 100))}%"></div>
-    </div>
-    <div class="wind-bar-labels"><span>${formatKt(scaleMin)} kt</span><span>${formatKt(range.min)}-${formatKt(range.max)} kt</span><span>${formatKt(scaleMax)} kt</span></div>`;
 }
 
 document.getElementById("panel-check")?.addEventListener("click", (e) => {

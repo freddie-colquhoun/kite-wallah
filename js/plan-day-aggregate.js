@@ -41,7 +41,7 @@ export function pickCrewDayVerdict(verdicts) {
  * @param {SessionLevel} verdict
  * @param {import('./planner.js').PlanDayRecommendation} rec
  */
-function crewDayNarrative(verdict, rec) {
+function daySummaryNarrative(verdict, rec) {
   const gust =
     rec.peakGust != null ? `, gusts to ${formatKt(rec.peakGust)} kt` : "";
   const dir = rec.windDirection ? ` from the ${rec.windDirection}` : "";
@@ -49,15 +49,15 @@ function crewDayNarrative(verdict, rec) {
 
   switch (verdict) {
     case "go":
-      return `${short}: powered riding ${rec.windowLabel} at ~${formatKt(rec.avgWind)} kt${gust}${dir}. A strong crew day if launch and tide work for you.`;
+      return `${short}: powered riding ${rec.windowLabel} at ~${formatKt(rec.avgWind)} kt${gust}${dir}. Solid session if launch and tide work.`;
     case "possible":
-      return `${short}: ${rec.windowLabel} around ~${formatKt(rec.avgWind)} kt${gust}${dir}. Worth going with realistic kit; some riders may prefer to sit out gust spikes.`;
+      return `${short}: ${rec.windowLabel} around ~${formatKt(rec.avgWind)} kt${gust}${dir}. Worth going with realistic kit; gust spikes may put some riders off.`;
     case "maybe":
       return `${short}: borderline power in ${rec.windowLabel} (~${formatKt(rec.avgWind)} kt${gust}). Fine for confident riders; others may find it marginal.`;
     case "probably-not":
       return `${short}: weak odds in ${rec.windowLabel}. Only keen riders with the right kite and patience.`;
     default:
-      return `${short}: no solid powered window in ${rec.windowLabel} for the crew.`;
+      return `${short}: no solid powered window in ${rec.windowLabel}.`;
   }
 }
 
@@ -86,10 +86,10 @@ function conditionsAtAGlance(rec, spot, spotEval) {
  * Shared on-the-water narrative for the crew (no single-rider kit bias).
  * @param {import('./planner.js').PlanDayRecommendation} rec
  */
-function crewOnWaterNarrative(rec) {
+function onWaterNarrative(rec) {
   const gust = rec.peakGust != null ? rec.peakGust - rec.avgWind : 0;
   if (gust >= 10) {
-    return `Crew average ${formatKt(rec.avgWind)} kt with gusts to ${formatKt(rec.peakGust)} kt — gust-management day: size for the average, keep kites high, and expect power spikes.`;
+    return `~${formatKt(rec.avgWind)} kt average with gusts to ${formatKt(rec.peakGust)} kt — gust-management day: size for the average, keep kites high, and expect power spikes.`;
   }
   if (rec.avgWind <= 14) {
     return `Light-to-moderate wind (~${formatKt(rec.avgWind)} kt) in ${rec.windowLabel}: technical riding, steady kite movement, and patience upwind.`;
@@ -131,7 +131,7 @@ export function buildSharedDayTips(day, spot, spotNotes, opts = {}) {
   const tips = [];
 
   if (opts.crewVerdict) {
-    tips.push({ title: "The day", text: crewDayNarrative(opts.crewVerdict, rec) });
+    tips.push({ title: "The day", text: daySummaryNarrative(opts.crewVerdict, rec) });
   }
 
   tips.push({
@@ -139,7 +139,7 @@ export function buildSharedDayTips(day, spot, spotNotes, opts = {}) {
     text: conditionsAtAGlance(rec, spot, spotEval),
   });
 
-  tips.push({ title: "On the water", text: crewOnWaterNarrative(rec) });
+  tips.push({ title: "On the water", text: onWaterNarrative(rec) });
 
   const skip = new Set([
     "Your spot",
@@ -147,6 +147,8 @@ export function buildSharedDayTips(day, spot, spotNotes, opts = {}) {
     "On the water",
     "The day",
     "Conditions",
+    "Tip for your level",
+    "Best time on the water",
   ]);
 
   const fromEngine = describeConditions(conditions, suitability, [], {
@@ -158,9 +160,12 @@ export function buildSharedDayTips(day, spot, spotNotes, opts = {}) {
 
   tips.push(...fromEngine);
 
-  const timing = day.tips?.find((t) => t.title === "Best time on the water");
-  if (timing && !tips.some((t) => t.title === timing.title)) {
-    tips.push({ title: timing.title, text: cleanCopy(timing.text) });
+  for (const t of day.tips ?? []) {
+    if (t.title === "Rideable" || t.title === "Best window" || t.title === "Gust pattern") {
+      if (!tips.some((x) => x.title === t.title)) {
+        tips.push({ title: t.title, text: cleanCopy(t.text) });
+      }
+    }
   }
 
   if (rec.skipNote) {
@@ -261,7 +266,7 @@ export function mergeCrewBringKit(kits, dayAlloc = null) {
       ? "Includes every kite assigned in Who flies what — plus forecast coverage for the main window."
       : hasGap
         ? "Rent or borrow any sizes listed below if the bag does not cover everyone."
-        : "Covers the crew for this day based on the picks above.",
+        : "Covers everyone for this day based on the picks above.",
     bring,
     quiverEmpty: valid.length ? valid.every((k) => k.quiverEmpty) : false,
     hasGap,

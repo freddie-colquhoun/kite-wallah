@@ -446,7 +446,13 @@ function buildPlanDayGuide(profile, riderKites, spot, spotNotes, scorable, ridea
     },
   };
 
-  const skipTitles = new Set(["Your spot", "How confident are we?", "On the water"]);
+  const skipTitles = new Set([
+    "Your spot",
+    "How confident are we?",
+    "On the water",
+    "Tip for your level",
+    "Best time on the water",
+  ]);
   const tips = [
     ...timingTips.map((s) => ({ ...s, text: cleanCopy(s.text) })),
     ...describeConditions(conditions, suitability, profile.calibration, {

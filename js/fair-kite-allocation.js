@@ -292,7 +292,7 @@ function formatCrewKitLine(assignments) {
  * @param {KiteAssignment} holder
  * @param {KiteAssignment} viewer
  */
-function explainIdealTakenBy(holder, viewer) {
+export function explainIdealTakenBy(holder, viewer) {
   const holderWeight = holder.riderWeight ?? 75;
   const viewerWeight = viewer.riderWeight ?? 75;
   const holderFewer =
@@ -465,7 +465,7 @@ export function buildRiderKiteDisplayHtml(
 
     return {
       html: `<p class="plan-rider-kite-fly">
-          <span class="plan-rider-kite-fly-label">Fly this</span>
+          <span class="plan-rider-kite-fly-label">Fly</span>
           <strong class="plan-rider-kite-fly-name">${escapeHtml(assignedName)}</strong>
           ${fit}
         </p>${flySub}${idealHtml}`,
