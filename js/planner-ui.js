@@ -53,6 +53,7 @@ import {
   setAiLayerMode,
   isAiLayerEnabled,
   isOpenAiKeyFromConfig,
+  shouldShowAiFeatures,
 } from "./ai-settings.js";
 import {
   enrichPlanResultsWithAiV2,
@@ -871,7 +872,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       return `<article class="plan-day-card plan-day-card--crew plan-day-card--${crewVerdict}" data-day-date="${escapeHtml(date)}">
         ${heroHtml}
         ${conditionsPanel}
-        ${renderAiV2SlotHtml(`plan-${date}`)}
+        ${shouldShowAiFeatures() ? renderAiV2SlotHtml(`plan-${date}`) : ""}
         ${tipsHtml}
         <section class="plan-crew-riders" aria-label="Kite assignment per rider">
           <div class="plan-crew-riders-head">
@@ -1032,7 +1033,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
         <article class="plan-day-card plan-day-card--${verdict}" data-day-date="${escapeHtml(day.date)}">
           ${heroHtml}
           ${conditionsPanel}
-          ${renderAiV2SlotHtml(`plan-${day.date}`)}
+          ${shouldShowAiFeatures() ? renderAiV2SlotHtml(`plan-${day.date}`) : ""}
           ${tipsHtml}
           ${bringHtml}
         </article>`;
@@ -1295,11 +1296,11 @@ function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) 
 
   const aiPanel = document.getElementById("plan-ai-panel");
   if (aiPanel) {
-    aiPanel.hidden = !hasPlans;
-    if (hasPlans) wirePlanChat(state, plans, spot);
+    aiPanel.hidden = !shouldShowAiFeatures() || !hasPlans;
+    if (shouldShowAiFeatures() && hasPlans) wirePlanChat(state, plans, spot);
   }
 
-  if (hasPlans) {
+  if (shouldShowAiFeatures() && hasPlans) {
     const travel = getPlanTravelOptionsFromForm();
     migrateProfilesToSharedQuiver(state);
     const packedKites = travel.enabled
@@ -1388,7 +1389,7 @@ export function refreshPlanUi(state) {
   renderPlanProfileSelector(state);
   wirePlanTravelUiOnce();
   syncPlanTravelPanel(state);
-  wireOpenAiSettingsOnce();
+  if (shouldShowAiFeatures()) wireOpenAiSettingsOnce();
 }
 
 function refreshOpenAiSettingsUi() {

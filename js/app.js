@@ -38,6 +38,7 @@ import {
 import { getSpot, loadSpots } from "./spots-storage.js";
 import { initPlannerModule, refreshPlanUi } from "./planner-ui.js";
 import { enrichNowResultsWithAiV2, renderAiV2SlotHtml } from "./ai-enrich.js";
+import { shouldShowAiFeatures } from "./ai-settings.js";
 import { escapeHtml } from "./dom-safe.js";
 import { buildNowWindHtml } from "./now-wind-panel.js";
 import { initLiveStatus } from "./live-status.js";
@@ -283,7 +284,9 @@ function renderAllResults(form, profileIds, opts) {
     )
     .join("");
   container.innerHTML = html;
-  void enrichNowResultsWithAiV2(container, entries, spot, allocation, state);
+  if (shouldShowAiFeatures()) {
+    void enrichNowResultsWithAiV2(container, entries, spot, allocation, state);
+  }
 }
 
 /**
@@ -452,7 +455,7 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
           <span class="result-score-label">/100 suitability</span>
         </span>
       </div>
-      ${renderAiV2SlotHtml(`now-${profile.id}-${spot?.id ?? "adhoc"}`)}
+      ${shouldShowAiFeatures() ? renderAiV2SlotHtml(`now-${profile.id}-${spot?.id ?? "adhoc"}`) : ""}
       ${gearHtml}
       ${notesHtml}
       ${calCta}

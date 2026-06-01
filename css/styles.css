@@ -3928,6 +3928,68 @@ textarea {
   border: 1px solid rgba(0, 122, 255, 0.15);
 }
 
+.plan-kite-row--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.45rem;
+  padding: 0.2rem 0;
+  background: transparent;
+  border: none;
+}
+
+.plan-kite-row--compact .plan-kite-row-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.plan-kite-alts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+}
+
+.plan-kite-crew-others {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.plan-kite-crew-others li {
+  padding: 0.1rem 0;
+}
+
+.plan-kite-crew-who {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plan-kite-bag-rest {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.plan-kite-bag-rest-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.plan-kite-chip {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  margin: 0.1rem 0.2rem 0 0;
+  border-radius: 4px;
+  background: var(--bg-muted);
+  white-space: nowrap;
+}
+
 .plan-kite-row-head {
   display: flex;
   flex-wrap: wrap;
