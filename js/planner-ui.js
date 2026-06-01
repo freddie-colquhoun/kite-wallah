@@ -797,6 +797,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
           const assign = dayAlloc?.assignments.find((a) => a.profileId === plan.profileId);
           const unassigned = dayAlloc?.unassigned.find((u) => u.profileId === plan.profileId);
           const recR = day.recommendation;
+          const crewWindKt = recR?.avgWind ?? rec?.avgWind ?? null;
           const sessionNoteHtml =
             recR && profile
               ? renderRelevantSessionNoteHtml(profile, spot, recR, assign)
@@ -805,7 +806,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
           const kiteDisplay = buildRiderKiteDisplayHtml(
             assign ?? null,
             unassigned ?? null,
-            recR.avgWind,
+            crewWindKt,
             dayAlloc?.assignments ?? []
           );
 
