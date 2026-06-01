@@ -4,7 +4,7 @@
  */
 
 import { recommendKite, getKiteWindRange, idealKiteSizeForWind } from "./engine.js";
-import { inferPreferredSize } from "./calibration.js";
+import { inferPreferredSize, getCalibrationAtWind } from "./calibration.js";
 import { formatKt } from "./format.js";
 
 /** @typedef {import('./kite-allocation.js').RiderAllocInput} RiderAllocInput */
@@ -151,6 +151,132 @@ function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions, a
   }
 
   return parts.length ? parts.join(" ") : null;
+}
+
+/**
+ * Why the only kite left would be a bad match (underpowered, overpowered, vs sessions).
+ * @param {RiderAllocInput} rider
+ * @param {{ kite: Kite, need: number, rec: ReturnType<typeof recommendKite>|null }} pick
+ * @param {number|null} minAdequate
+ * @param {number} idealSize
+ */
+function explainPoorRemainingKiteFit(rider, pick, minAdequate, idealSize) {
+  const wind = rider.conditions.windSpeed;
+  const weight = rider.conditions.riderWeight ?? 75;
+  const kite = pick.kite;
+  const rec = pick.rec;
+  /** @type {string[]} */
+  const parts = [];
+
+  const catalog = rec?.catalogRange ?? getKiteWindRange(kite, weight);
+  const band = rec?.comfortBand;
+
+  if (band === "light" || wind < catalog.min - 0.5) {
+    parts.push(
+      `The ${kite.size}m would likely feel underpowered at ${formatKt(wind)} kt (manufacturer band from ${formatKt(catalog.min)} kt).`
+    );
+  } else if (band === "strong" || wind > catalog.max + 1) {
+    parts.push(
+      `The ${kite.size}m would likely feel too strong at ${formatKt(wind)} kt (chart tops out around ${formatKt(catalog.max)} kt).`
+    );
+  } else if (band === "extended" && rec?.comfortNote) {
+    parts.push(rec.comfortNote);
+  }
+
+  const sizeGap = idealSize - kite.size;
+  if (sizeGap >= 1 && !parts.some((p) => /underpower/i.test(p))) {
+    parts.push(
+      `At ~${weight} kg and ${formatKt(wind)} kt you would normally want about ${idealSize}m — this ${kite.size}m is noticeably smaller.`
+    );
+  } else if (kite.size - idealSize >= 1.5 && !parts.some((p) => /strong|overpower|hold down/i.test(p))) {
+    parts.push(
+      `This ${kite.size}m is larger than the ~${idealSize}m ideal for your weight at ${formatKt(wind)} kt — harder to hold down.`
+    );
+  }
+
+  if (minAdequate != null && kite.size < minAdequate - 0.25) {
+    parts.push(
+      `Your sessions near ${formatKt(wind)} kt suggest you need at least ~${minAdequate}m (underpowered on smaller sizes in your log).`
+    );
+  }
+
+  const onThisKite = rider.calibration.filter(
+    (e) => e.kiteId === kite.id && Math.abs(e.windSpeed - wind) <= 5
+  );
+  if (onThisKite.length) {
+    const bad = onThisKite.filter((e) =>
+      ["too-small", "couldnt-ride", "too-big"].includes(e.feeling)
+    );
+    if (bad.length) {
+      const notes = [
+        ...new Set(
+          bad.map((e) => {
+            if (e.feeling === "too-big") return `overpowered on this kite at ${e.windSpeed} kt`;
+            return `underpowered on this kite at ${e.windSpeed} kt`;
+          })
+        ),
+      ];
+      parts.push(`You've logged: ${notes.join("; ")}.`);
+    } else {
+      const ok = onThisKite.filter((e) =>
+        ["just-right", "comfortable"].includes(e.feeling)
+      );
+      if (!ok.length) {
+        parts.push(
+          `Your log on this kite near ${formatKt(wind)} kt does not show it working well for you.`
+        );
+      }
+    }
+  }
+
+  const cal = getCalibrationAtWind(wind, rider.calibration);
+  if (cal.preferredSize != null && Math.abs(kite.size - cal.preferredSize) >= 1) {
+    if (cal.summary) {
+      parts.push(
+        `${cal.summary} A ${kite.size}m is well off your usual ~${cal.preferredSize}m near this wind.`
+      );
+    } else if (kite.size < cal.preferredSize) {
+      parts.push(
+        `Near ${formatKt(wind)} kt your past sessions point to ~${cal.preferredSize}m — this ${kite.size}m is likely underpowered.`
+      );
+    } else {
+      parts.push(
+        `Near ${formatKt(wind)} kt your past sessions point to ~${cal.preferredSize}m — this ${kite.size}m may feel too big.`
+      );
+    }
+  } else if (cal.summary && !parts.length) {
+    parts.push(cal.summary);
+  }
+
+  if (rec?.comfortNote && !parts.includes(rec.comfortNote)) {
+    parts.push(rec.comfortNote);
+  } else if (rec?.reason && parts.length < 2) {
+    const trimmed = rec.reason.replace(/^[^:]+:\s*/, "").trim();
+    if (trimmed && trimmed.length < 200) parts.push(trimmed);
+  }
+
+  if (!parts.length) {
+    parts.push(
+      `At ${formatKt(wind)} kt this ${kite.size}m only scores ${pick.need}% need-fit for you.`
+    );
+  }
+
+  return parts.slice(0, 2).join(" ");
+}
+
+/**
+ * @param {RiderAllocInput & { minAdequate?: number|null, idealSize?: number }} r
+ * @param {{ kite: Kite, need: number, rec: ReturnType<typeof recommendKite>|null }} pick
+ */
+function buildPoorFitUnassignedMessage(r, pick) {
+  const kiteLabel = pick.kite.name || `${pick.kite.brand || "Kite"} ${pick.kite.size}m`;
+  const why = explainPoorRemainingKiteFit(
+    r,
+    pick,
+    r.minAdequate ?? null,
+    r.idealSize ?? idealKiteSizeForWind(r.conditions.windSpeed, r.conditions.riderWeight ?? 75)
+  );
+  return `${r.name}: no good kite left — only ${kiteLabel} (${pick.need}% need-fit). ${why} Consider renting.`;
 }
 
 /**
@@ -323,7 +449,7 @@ export function allocateKitesFairly(riders, allKites) {
         profileId: r.profileId,
         name: r.name,
         reason: "shortage",
-        message: `${r.name}: no good kite left (${pick.kite.name} only ${pick.need}% need-fit). Consider renting.`,
+        message: buildPoorFitUnassignedMessage(r, pick),
         soloPick: r.solo?.kite ?? null,
       });
       continue;
