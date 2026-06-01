@@ -418,6 +418,19 @@ function setSyncStatus(text) {
   el.textContent = text;
 }
 
+/** Re-apply header sync UI from current mode (call after app start). */
+export function updateSyncStatusDisplay() {
+  if (mode === "cloud" && cloudIssue === "none") {
+    setSyncStatusLive();
+  } else if (mode === "local") {
+    setSyncStatus("Saved on this device only");
+  } else if (cloudIssue === "load_failed") {
+    setSyncStatus("Could not reach shared data");
+  } else if (cloudIssue === "save_failed") {
+    setSyncStatus("Save failed");
+  }
+}
+
 /**
  * @param {'load_failed'|'save_failed'} kind
  * @param {Error|{ message?: string }|null} [err]

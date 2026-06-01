@@ -48,6 +48,35 @@ const DEFAULT_RIDER = {
   preferredStyle: "freeride",
 };
 
+/** @param {RiderProfile|null|undefined} profile */
+export function isRiderSexSet(profile) {
+  return profile?.sex === "male" || profile?.sex === "female";
+}
+
+/**
+ * @param {AppState} state
+ * @param {string[]} profileIds
+ * @returns {string[]} rider names missing sex
+ */
+export function riderNamesMissingSex(state, profileIds) {
+  return profileIds
+    .map((id) => getProfile(state, id))
+    .filter((p) => p && !isRiderSexSet(p))
+    .map((p) => p.name);
+}
+
+/**
+ * @param {AppState} state
+ * @param {string[]} profileIds
+ * @returns {string|null}
+ */
+export function formatRidersMissingSexMessage(state, profileIds) {
+  const names = riderNamesMissingSex(state, profileIds);
+  if (!names.length) return null;
+  const list = names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " and " + names.at(-1);
+  return `Set sex for ${list} on the Riders tab (required for kite sizing).`;
+}
+
 export function createEmptyProfile(name = "New rider") {
   return {
     id: createId(),
@@ -186,6 +215,7 @@ function normalizeProfile(/** @type {RiderProfile} */ p) {
       : [],
   };
   syncRiderGearIdsFromSessions(profile);
+  if (!isRiderSexSet(profile)) profile.sex = "unspecified";
   return profile;
 }
 

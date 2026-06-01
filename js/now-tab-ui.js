@@ -8,6 +8,7 @@ import { fetchWindForSpot, loadTidesForSpot, getSpotsState } from "./spots-ui.js
 import { COMPASS } from "./spots-storage.js";
 import { renderWindPreviewInResults } from "./now-wind-panel.js";
 import { evaluateSpot, assessTideLaunchWindow, hasTideLaunchRule } from "./spot-engine.js";
+import { formatRidersMissingSexMessage } from "./storage.js";
 
 /** @typedef {import('./location-search.js').SearchResult} SearchResult */
 /** @typedef {import('./spots-storage.js').KiteSpot} KiteSpot */
@@ -195,6 +196,13 @@ function runSpotAnalyse(spot, handlers) {
     return;
   }
 
+  const state = handlers.getState();
+  const sexMsg = formatRidersMissingSexMessage(state, ids);
+  if (sexMsg) {
+    container.innerHTML = `<p class="hint hint-tight now-spot-rider-hint">${handlers.escapeHtml(sexMsg)}</p>`;
+    return;
+  }
+
   const snap = spotWindById.get(spot.id) ?? null;
   if (!snap?.current) {
     container.innerHTML = '<p class="hint hint-tight">Wind not loaded yet.</p>';
@@ -357,6 +365,13 @@ function runAdhocAnalyse(handlers) {
   if (!ids.length) {
     container.innerHTML =
       '<p class="hint hint-tight">Select riders above to see GO / kite / board.</p>';
+    return;
+  }
+
+  const state = handlers.getState();
+  const sexMsg = formatRidersMissingSexMessage(state, ids);
+  if (sexMsg) {
+    container.innerHTML = `<p class="hint hint-tight">${handlers.escapeHtml(sexMsg)}</p>`;
     return;
   }
 

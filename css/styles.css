@@ -77,6 +77,11 @@ textarea {
   display: none;
 }
 
+.field-required {
+  color: var(--danger, #dc2626);
+  font-weight: 700;
+}
+
 .sync-status {
   margin: 0.15rem 0 0;
   font-size: 0.75rem;
@@ -352,20 +357,40 @@ h2 {
   border: 0;
 }
 
-.plan-travel-field {
+.plan-travel-details {
   margin-top: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.plan-travel-summary {
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.plan-travel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-travel-summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.plan-travel-details[open] .plan-travel-summary::before {
+  transform: rotate(90deg);
 }
 
 .plan-travel-panel {
-  margin-top: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-}
-
-.plan-travel-panel.hidden {
-  display: none;
+  padding: 0 var(--space-md) var(--space-md);
+  border-top: 1px solid var(--border-light);
 }
 
 .plan-travel-mode {

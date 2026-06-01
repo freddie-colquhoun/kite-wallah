@@ -1,7 +1,7 @@
 import { createId } from "./ids.js";
 import { FEELING_LABELS } from "./calibration.js";
 import { getSpot, loadSpots, COMPASS } from "./spots-storage.js";
-import { getProfile, syncRiderGearIdsFromSessions } from "./storage.js";
+import { getProfile, isRiderSexSet, syncRiderGearIdsFromSessions } from "./storage.js";
 import { getRiderKites, getRiderBoards } from "./quiver-storage.js";
 import {
   buildSessionIso,
@@ -273,6 +273,11 @@ function renderSessionsList(profile) {
 function handleSessionSubmit(state) {
   const profile = getProfile(state, state.activeProfileId);
   if (!profile) return;
+
+  if (!isRiderSexSet(profile)) {
+    alert("Set sex for this rider on the Riders tab before logging sessions.");
+    return;
+  }
 
   const val = document.getElementById("sess-kite")?.value;
   let kiteSize, kiteName, kiteId = null;

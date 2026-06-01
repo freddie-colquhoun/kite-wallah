@@ -60,13 +60,10 @@
                 <div id="plan-day-picker"></div>
               </div>
 
-              <div class="field field-flush plan-travel-field">
-                <label class="check-inline plan-travel-toggle">
-                  <input type="checkbox" id="plan-travelling" />
-                  <span>Travelling</span>
-                </label>
-                <p class="hint hint-tight">Trip mode: only kites you packed, or full rental catalog recommendations.</p>
-                <div id="plan-travel-panel" class="plan-travel-panel hidden" hidden>
+              <details id="plan-travel-details" class="plan-travel-details">
+                <summary class="plan-travel-summary">Travelling</summary>
+                <div class="plan-travel-panel">
+                  <p class="hint hint-tight">Choose what gear this trip uses — packed kites from your quiver, or rent from the shop catalog.</p>
                   <fieldset class="plan-travel-mode">
                     <legend class="sr-only">Travel gear</legend>
                     <label class="plan-travel-radio">
@@ -79,11 +76,14 @@
                     </label>
                   </fieldset>
                   <div id="plan-travel-packed" class="plan-travel-packed">
-                    <p class="hint hint-tight">Tick every kite in the bag (shared crew quiver).</p>
+                    <p class="hint hint-tight plan-travel-packed-label"><strong>Select packed kites</strong> — tick every kite in the bag (crew quiver).</p>
                     <div id="plan-travel-kite-list" class="profile-selector plan-travel-kites"></div>
                   </div>
+                  <div id="plan-travel-renting" class="plan-travel-renting" hidden>
+                    <p class="hint hint-tight">No packed kites — Plan will recommend from the <strong>full rental catalog</strong> (weight-adjusted) for each rider.</p>
+                  </div>
                 </div>
-              </div>
+              </details>
 
               <details class="form-more">
                 <summary>Options</summary>

@@ -24,7 +24,7 @@ import {
   getPlanCalendarDates,
 } from "./plan-calendar.js";
 import { getSpot, loadSpots, loadSettings } from "./spots-storage.js";
-import { getProfile, profileToConditions } from "./storage.js";
+import { getProfile, profileToConditions, formatRidersMissingSexMessage } from "./storage.js";
 import { migrateProfilesToSharedQuiver } from "./quiver-storage.js";
 import {
   defaultPlanTravelOptions,
@@ -256,7 +256,8 @@ function getPlanCrewAllocationHint() {
 
 /** @returns {import('./plan-travel.js').PlanTravelOptions} */
 function getPlanTravelOptionsFromForm() {
-  const enabled = document.getElementById("plan-travelling")?.checked ?? false;
+  const details = document.getElementById("plan-travel-details");
+  const enabled = details?.open ?? false;
   if (!enabled) return defaultPlanTravelOptions();
 
   const modeInput = document.querySelector('input[name="plan-travel-mode"]:checked');
@@ -272,16 +273,32 @@ function getPlanTravelOptionsFromForm() {
   return { enabled: true, mode, packedKiteIds };
 }
 
-function syncPlanTravelPanel() {
-  const travelling = document.getElementById("plan-travelling")?.checked ?? false;
-  const panel = document.getElementById("plan-travel-panel");
-  if (!panel) return;
-  panel.hidden = !travelling;
-  panel.classList.toggle("hidden", !travelling);
-
-  const mode = document.querySelector('input[name="plan-travel-mode"]:checked')?.value;
+/** @param {AppState} [state] */
+function syncPlanTravelPanel(state) {
+  const mode = document.querySelector('input[name="plan-travel-mode"]:checked')?.value ?? "packed";
   const packed = document.getElementById("plan-travel-packed");
-  if (packed) packed.hidden = mode === "renting";
+  const renting = document.getElementById("plan-travel-renting");
+  const isRenting = mode === "renting";
+
+  if (packed) packed.hidden = isRenting;
+  if (renting) renting.hidden = !isRenting;
+
+  if (state && !isRenting) renderPlanTravelKites(state);
+}
+
+/** @param {AppState} state */
+function wirePlanTravelUi(state) {
+  const details = document.getElementById("plan-travel-details");
+  if (!details || details.dataset.wired === "1") return;
+  details.dataset.wired = "1";
+
+  details.addEventListener("toggle", () => {
+    if (details.open) syncPlanTravelPanel(state);
+  });
+
+  document.querySelectorAll('input[name="plan-travel-mode"]').forEach((el) => {
+    el.addEventListener("change", () => syncPlanTravelPanel(state));
+  });
 }
 
 /** @param {AppState} state */
@@ -325,13 +342,8 @@ export function initPlannerModule(state) {
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
   renderPlanDayPicker(state);
-  renderPlanTravelKites(state);
-  syncPlanTravelPanel();
-
-  document.getElementById("plan-travelling")?.addEventListener("change", syncPlanTravelPanel);
-  document.querySelectorAll('input[name="plan-travel-mode"]').forEach((el) => {
-    el.addEventListener("change", syncPlanTravelPanel);
-  });
+  wirePlanTravelUi(state);
+  syncPlanTravelPanel(state);
 
   document.querySelectorAll("[data-plan-day-preset]").forEach((btn) => {
     btn.addEventListener("click", () => applyDayPreset(btn.dataset.planDayPreset));
@@ -412,6 +424,13 @@ async function runPlan(state) {
     alert("Select at least one rider.");
     return;
   }
+
+  const sexMsg = formatRidersMissingSexMessage(state, profileIds);
+  if (sexMsg) {
+    alert(sexMsg);
+    return;
+  }
+
   if (!availability.dates.length) {
     alert("Select at least one day you might kite.");
     return;
@@ -1248,7 +1267,8 @@ function wirePlanChat(state, plans, spot) {
 export function refreshPlanUi(state) {
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
-  renderPlanTravelKites(state);
+  wirePlanTravelUi(state);
+  syncPlanTravelPanel(state);
   const keyEl = document.getElementById("plan-openai-key");
   if (keyEl && !keyEl.dataset.loaded) {
     keyEl.value = getOpenAiApiKey();

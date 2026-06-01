@@ -5,6 +5,8 @@ import {
   installState,
   saveState,
   getProfile,
+  isRiderSexSet,
+  formatRidersMissingSexMessage,
   upsertProfile,
   deleteProfile,
   createEmptyProfile,
@@ -41,7 +43,7 @@ import { assessTideLaunchWindow, hasTideLaunchRule } from "./spot-engine.js";
 import { windArrowSvg, windBlowToDeg } from "./wind-arrow.js";
 import { getTomorrowDate } from "./planner.js";
 import { formatNum, formatKt } from "./format.js";
-import { bootstrapData } from "./data-store.js";
+import { bootstrapData, updateSyncStatusDisplay } from "./data-store.js";
 import { renderResultNotesHtml } from "./result-factors.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
@@ -206,6 +208,11 @@ function updateAnalyseTideBanner(spot) {
  * @param {{ container: HTMLElement, spot: import('./spots-storage.js').KiteSpot|null, windSnap?: import('./now-wind-panel.js').NowWindSnapshot|null }} opts
  */
 function renderAllResults(form, profileIds, opts) {
+  const sexMsg = formatRidersMissingSexMessage(state, profileIds);
+  if (sexMsg) {
+    opts.container.innerHTML = `<p class="hint hint-tight now-spot-rider-hint">${escapeHtml(sexMsg)}</p>`;
+    return;
+  }
   const container = opts.container;
   const spot = opts.spot;
   if (spot) lastSpot = spot;
@@ -544,7 +551,7 @@ function renderProfileNav() {
       <button type="button" class="profile-nav-btn ${p.id === state.activeProfileId ? "active" : ""}" data-profile-id="${p.id}">
         <span class="profile-nav-text">
           <span>${escapeHtml(p.name)}</span>
-          <small>${p.calibration.length ? `${p.calibration.length} session${p.calibration.length === 1 ? "" : "s"} logged` : "No sessions logged"}</small>
+          <small>${!isRiderSexSet(p) ? "Set sex required" : p.calibration.length ? `${p.calibration.length} session${p.calibration.length === 1 ? "" : "s"} logged` : "No sessions logged"}</small>
         </span>
       </button>
     </li>`
@@ -585,9 +592,9 @@ function renderProfileEditor() {
           <div class="field"><label>Height (cm)</label><input type="number" id="edit-height" min="130" max="220" value="${profile.height}" required /></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Sex</label>
-            <select id="edit-sex" required>
-              <option value="" disabled ${!profile.sex || profile.sex === "unspecified" ? "selected" : ""}>Please select</option>
+          <div class="field"><label>Sex <span class="field-required" aria-hidden="true">*</span></label>
+            <select id="edit-sex" required aria-required="true">
+              <option value="" disabled ${!isRiderSexSet(profile) ? "selected" : ""}>Please select</option>
               <option value="male" ${profile.sex === "male" ? "selected" : ""}>Male</option>
               <option value="female" ${profile.sex === "female" ? "selected" : ""}>Female</option>
             </select>
@@ -763,5 +770,6 @@ void (async () => {
   }
 
   state = bootState;
+  updateSyncStatusDisplay();
   startApp();
 })();
