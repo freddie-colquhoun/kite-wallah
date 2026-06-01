@@ -1,3 +1,5 @@
+import { formatKiteCanonicalName } from "./quiver-storage.js";
+
 /** @typedef {'hybrid' | 'bow' | 'c' | 'foil'} KiteType */
 
 /**
@@ -190,7 +192,7 @@ export function listCatalogKitesAtSize(size, rider = {}) {
         brand,
         model,
         size,
-        name: `${brand} ${model} ${size}m`,
+        name: formatKiteCanonicalName(brand, model, size),
         type: spec.type,
         style: spec.style,
         windRange,

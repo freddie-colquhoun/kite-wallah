@@ -25,14 +25,49 @@ import { getSkillLimits } from "./ability-levels.js";
  * @property {string} note
  */
 
+/**
+ * Model typed as "Duotone Evo" with brand Duotone → "Evo" (avoids duplicated names).
+ * @param {string} brand
+ * @param {string} model
+ */
+export function stripBrandPrefixFromModel(brand, model) {
+  const b = (brand || "").trim();
+  let m = (model || "").trim();
+  if (!b || !m) return m;
+  const bl = b.toLowerCase();
+  const ml = m.toLowerCase();
+  if (ml === bl) return "";
+  if (ml.startsWith(`${bl} `)) return m.slice(b.length).trim();
+  if (ml.startsWith(bl)) return m.slice(b.length).trim();
+  return m;
+}
+
+/**
+ * @param {string} brand
+ * @param {string} model
+ * @param {number} size
+ */
+export function formatKiteCanonicalName(brand, model, size) {
+  const b = (brand || "").trim();
+  const m = stripBrandPrefixFromModel(b, model);
+  const sz = Number(size);
+  const sizePart = Number.isFinite(sz) && sz > 0 ? `${sz}m` : "";
+  return [b, m, sizePart].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
 /** @param {Partial<Kite>} k */
 export function normalizeKite(k) {
+  const brand = (k.brand || "").trim();
+  const model = stripBrandPrefixFromModel(brand, k.model || "");
+  const size = Number(k.size) || 0;
+  const canonical = formatKiteCanonicalName(brand, model, size);
+
   return {
     id: k.id || createId(),
-    brand: k.brand || "",
-    model: k.model || "",
-    size: Number(k.size) || 0,
-    name: k.name || `${k.brand || "Kite"} ${k.model || ""} ${k.size || "?"}m`.trim(),
+    brand,
+    model,
+    size,
+    name: canonical || (k.name || "").trim() || "Kite",
     type: k.type || "hybrid",
     style: k.style || "",
     windRange: k.windRange,
@@ -215,5 +250,5 @@ export function removeQuiverBoard(state, boardId) {
 export function kiteDisplayTitle(kite) {
   const k = normalizeKite(kite);
   if (k.label) return k.label;
-  return k.name;
+  return k.name || formatKiteCanonicalName(k.brand, k.model, k.size);
 }

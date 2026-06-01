@@ -14,6 +14,8 @@ import {
   upsertQuiverBoard,
   removeQuiverBoard,
   kiteDisplayTitle,
+  formatKiteCanonicalName,
+  stripBrandPrefixFromModel,
   migrateProfilesToSharedQuiver,
 } from "./quiver-storage.js";
 import { saveState, getProfile } from "./storage.js";
@@ -126,6 +128,17 @@ function renderQuiverPanel() {
   });
 }
 
+/** @param {import('./quiver-storage.js').Kite} n */
+function kiteCardSubtitle(n) {
+  const parts = [];
+  if (n.label) parts.push(formatKiteCanonicalName(n.brand, n.model, n.size));
+  if (n.style) parts.push(n.style);
+  if (n.windRange) {
+    parts.push(`${formatKt(n.windRange.min)}–${formatKt(n.windRange.max)} kt`);
+  }
+  return parts.filter(Boolean).join(" · ") || formatKiteCanonicalName(n.brand, n.model, n.size);
+}
+
 /** @param {Kite[]} kites */
 function renderKiteCards(kites) {
   if (!kites.length) {
@@ -135,7 +148,7 @@ function renderKiteCards(kites) {
     .map((k) => {
       const n = normalizeKite(k);
       const title = escapeHtml(kiteDisplayTitle(n));
-      const sub = escapeHtml(n.name);
+      const sub = escapeHtml(kiteCardSubtitle(n));
       const badges = [
         n.isSls ? `<span class="quiver-badge quiver-badge-sls">SLS</span>` : "",
         n.color ? `<span class="quiver-badge">${escapeHtml(n.color)}</span>` : "",
@@ -266,10 +279,12 @@ function openKiteEditor(kiteId) {
             <select id="qk-size"><option value="">Please select…</option></select>
           </div>
         </div>
-        <p class="hint hint-tight">Or type any brand / model below if it is not in the list.</p>
-        <div class="quiver-catalog-type field-row field-row-tight">
-          <input type="text" id="qk-brand" list="quiver-brand-list" placeholder="Type brand" value="${escapeAttr(k?.brand)}" autocomplete="off" />
-          <input type="text" id="qk-model" list="quiver-model-list" placeholder="Type model" value="${escapeAttr(k?.model)}" autocomplete="off" />
+        <p class="hint hint-tight">
+          <button type="button" class="btn-link" id="qk-toggle-manual-brand">Can't find it in the list?</button>
+        </p>
+        <div id="qk-manual-brand" class="quiver-catalog-type field-row field-row-tight hidden" hidden>
+          <input type="text" id="qk-brand" list="quiver-brand-list" placeholder="Brand" value="${escapeAttr(k?.brand)}" autocomplete="off" />
+          <input type="text" id="qk-model" list="quiver-model-list" placeholder="Model" value="${escapeAttr(k?.model)}" autocomplete="off" />
         </div>
         <datalist id="quiver-brand-list"></datalist>
         <datalist id="quiver-model-list"></datalist>
@@ -458,11 +473,17 @@ function wireKiteEditor(k) {
     select.innerHTML = `<option value="">${placeholder}</option>${opts}`;
   }
 
+  function readBrandModelFromForm() {
+    const brand = (brandSelect?.value || brandEl?.value || "").trim();
+    const modelRaw = (modelSelect?.value || modelEl?.value || "").trim();
+    const model = stripBrandPrefixFromModel(brand, modelRaw);
+    return { brand, model };
+  }
+
   function syncBrandFromSelect() {
-    if (!brandSelect || !brandEl) return;
+    if (!brandSelect) return;
     if (brandSelect.value) {
-      brandEl.value = brandSelect.value;
-      fillSelect(modelSelect, getModels(brandSelect.value), "Please select…", modelEl?.value || "");
+      fillSelect(modelSelect, getModels(brandSelect.value), "Please select…", modelSelect?.value || "");
       const bl = document.getElementById("quiver-model-list");
       if (bl) {
         bl.innerHTML = getModels(brandSelect.value)
@@ -485,8 +506,7 @@ function wireKiteEditor(k) {
   }
 
   async function lookupSpecs() {
-    const brand = brandEl.value.trim();
-    const model = modelEl.value.trim();
+    const { brand, model } = readBrandModelFromForm();
     const size = Number(sizeEl.value);
     if (!brand || !model || !size) return;
     specPreview.classList.remove("hidden");
@@ -494,7 +514,12 @@ function wireKiteEditor(k) {
     try {
       const rider = getQuiverRiderForSpecs();
       pendingKiteSpec = await fetchKiteSpecs(brand, model, size, rider);
-      specPreview.innerHTML = `<strong>${pendingKiteSpec.brand} ${pendingKiteSpec.model} ${formatNum(pendingKiteSpec.size, 0)}m</strong> · ${formatKt(pendingKiteSpec.windRange.min)}-${formatKt(pendingKiteSpec.windRange.max)} kt`;
+      const previewName = formatKiteCanonicalName(
+        pendingKiteSpec.brand,
+        pendingKiteSpec.model,
+        pendingKiteSpec.size
+      );
+      specPreview.innerHTML = `<strong>${escapeHtml(previewName)}</strong> · ${formatKt(pendingKiteSpec.windRange.min)}-${formatKt(pendingKiteSpec.windRange.max)} kt`;
     } catch (err) {
       specPreview.textContent = err.message;
       pendingKiteSpec = {
@@ -517,7 +542,17 @@ function wireKiteEditor(k) {
     if (bl) bl.innerHTML = brands.map((b) => `<option value="${escapeHtml(b)}">`).join("");
 
     if (k?.brand) {
-      if (brands.includes(k.brand)) brandSelect.value = k.brand;
+      const inCatalog = brands.includes(k.brand);
+      if (inCatalog) brandSelect.value = k.brand;
+      else {
+        const manual = document.getElementById("qk-manual-brand");
+        if (manual) {
+          manual.hidden = false;
+          manual.classList.remove("hidden");
+        }
+        if (brandEl) brandEl.value = k.brand;
+        if (modelEl) modelEl.value = k.model || "";
+      }
       fillSelect(modelSelect, getModels(k.brand), "Please select…", k.model || "");
       const ml = document.getElementById("quiver-model-list");
       if (ml) {
@@ -542,18 +577,24 @@ function wireKiteEditor(k) {
     }
   });
 
+  document.getElementById("qk-toggle-manual-brand")?.addEventListener("click", () => {
+    const manual = document.getElementById("qk-manual-brand");
+    if (!manual) return;
+    const show = manual.hidden;
+    manual.hidden = !show;
+    manual.classList.toggle("hidden", !show);
+  });
+
   brandSelect?.addEventListener("change", () => {
     pendingKiteSpec = null;
     syncBrandFromSelect();
-    modelEl.value = "";
     modelSelect.value = "";
     sizeEl.innerHTML = '<option value="">Please select…</option>';
   });
 
   modelSelect?.addEventListener("change", () => {
     pendingKiteSpec = null;
-    if (modelSelect.value) modelEl.value = modelSelect.value;
-    refreshSizeOptions(brandEl.value.trim(), modelEl.value.trim(), null);
+    refreshSizeOptions(brandSelect?.value || brandEl?.value || "", modelSelect.value, null);
   });
 
   brandEl?.addEventListener("input", () => {
@@ -583,11 +624,10 @@ function wireKiteEditor(k) {
 
   document.getElementById("quiver-kite-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const brand = brandEl.value.trim();
-    const model = modelEl.value.trim();
+    const { brand, model } = readBrandModelFromForm();
     const size = Number(sizeEl.value) || pendingKiteSpec?.size || k?.size;
     if (!brand || !model || !size) {
-      alert("Enter brand, model, and size.");
+      alert("Choose brand, model, and size from the lists (or use “Can't find it in the list?”).");
       return;
     }
     const spec = pendingKiteSpec || {
@@ -606,7 +646,7 @@ function wireKiteEditor(k) {
       brand: spec.brand,
       model: spec.model,
       size: spec.size,
-      name: `${spec.brand} ${spec.model} ${spec.size}m`,
+      name: formatKiteCanonicalName(spec.brand, spec.model, spec.size),
       type: spec.type,
       style: spec.style,
       windRange: spec.windRange,
