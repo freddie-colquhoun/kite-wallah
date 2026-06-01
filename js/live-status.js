@@ -1,5 +1,5 @@
 /**
- * Header live-data dashboard: crew sync + wind + tides freshness.
+ * Header status: Weather (wind + tides) and Your data (crew sync).
  */
 
 import { getDataMode, getCloudIssue } from "./data-store.js";
@@ -32,43 +32,18 @@ function freshnessState(at, maxAgeMs) {
   return "stale";
 }
 
-/** @param {LiveChipState} state */
-function chipTitle(state, label, detail) {
-  const base = {
-    live: `${label} — live and up to date`,
-    local: `${label} — saved on this device only (not shared)`,
-    error: `${label} — could not reach shared data`,
-    saving: `${label} — save to shared data failed`,
-    off: `${label} — not loaded yet`,
-    stale: `${label} — data is getting old; refresh when you can`,
-  };
-  const t = base[state] ?? label;
-  return detail ? `${t}. ${detail}` : t;
+/** @param {LiveChipState[]} states */
+function worstState(states) {
+  const rank = { error: 0, saving: 1, off: 2, stale: 3, local: 4, live: 5 };
+  return states.reduce((a, b) => (rank[a] < rank[b] ? a : b));
 }
 
-/**
- * @param {string} label
- * @param {LiveChipState} state
- * @param {string} [detail]
- */
-function chipHtml(label, state, detail = "") {
-  const title = chipTitle(state, label, detail || null);
-  const detailHtml = detail
-    ? `<span class="live-status-chip-detail">${escapeAttr(detail)}</span>`
-    : "";
-  return `<span class="live-status-chip live-status-chip--${state}" role="status" title="${escapeAttr(title)}">
-    <span class="live-status-dot" aria-hidden="true"></span>
-    <span class="live-status-chip-label">${escapeAttr(label)}</span>
-    ${detailHtml}
-  </span>`;
-}
-
-function escapeAttr(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+/** @returns {LiveChipState} */
+function weatherChipState() {
+  const windS = freshnessState(wind.at, WIND_FRESH_MS);
+  const tideS = freshnessState(tides.at, TIDE_FRESH_MS);
+  if (wind.at == null && tides.at == null) return "off";
+  return worstState([windS, tideS]);
 }
 
 function formatAge(at) {
@@ -79,44 +54,72 @@ function formatAge(at) {
   return `${hrs}h ago`;
 }
 
+function weatherDetail() {
+  const parts = [];
+  if (wind.at != null) {
+    parts.push(`Wind ${formatAge(wind.at)}`);
+  }
+  if (tides.at != null) {
+    parts.push(`Tides ${formatAge(tides.at)}`);
+  }
+  if (!parts.length) return "Open Spots or Now to load";
+  return parts.join(" · ");
+}
+
 function crewDetail() {
   const s = crewChipState();
-  if (s === "live") return "Cloud sync";
-  if (s === "local") return "This device";
-  if (s === "error") return "Retry in banner";
-  if (s === "saving") return "Check connection";
+  if (s === "live") return "Synced for all riders";
+  if (s === "local") return "This device only";
+  if (s === "error") return "Could not load shared data";
+  if (s === "saving") return "Save failed — retry";
   return "";
+}
+
+/** @param {LiveChipState} state @param {string} label @param {string} detail */
+function pillTitle(state, label, detail) {
+  const base = {
+    live: `${label} is up to date`,
+    local: `${label} is on this device only`,
+    error: `${label} could not sync`,
+    saving: `${label} could not save`,
+    off: `${label} not loaded yet`,
+    stale: `${label} may be out of date`,
+  };
+  const t = base[state] ?? label;
+  return detail ? `${t}. ${detail}` : t;
+}
+
+function escapeAttr(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * @param {string} label
+ * @param {LiveChipState} state
+ * @param {string} detail
+ */
+function pillHtml(label, state, detail) {
+  const title = pillTitle(state, label, detail);
+  return `<span class="live-pill live-pill--${state}" role="status" title="${escapeAttr(title)}">
+    <span class="live-pill-dot" aria-hidden="true"></span>
+    <span class="live-pill-label">${escapeAttr(label)}</span>
+  </span>`;
 }
 
 function renderBar() {
   const el = document.getElementById("live-status-bar");
   if (!el) return;
 
-  const crew = crewChipState();
-  const crewD = crewDetail();
-  const windState = freshnessState(wind.at, WIND_FRESH_MS);
-  const tideState = freshnessState(tides.at, TIDE_FRESH_MS);
+  const weatherState = weatherChipState();
+  const crewState = crewChipState();
 
-  const windDetail =
-    wind.at != null
-      ? `${formatAge(wind.at)}${wind.source ? ` · ${wind.source}` : ""}`
-      : "Fetch wind on Spots or Now";
-  const tideDetail =
-    tides.at != null
-      ? `${formatAge(tides.at)}${tides.source ? ` · ${tides.source}` : ""}`
-      : "Refresh tides on Spots";
-
-  el.innerHTML = `<div class="live-status-inner" aria-label="Live data status">
-    <span class="live-status-group" aria-label="Crew data">
-      ${chipHtml("Riders", crew, crewD)}
-      ${chipHtml("Quiver", crew, crewD)}
-      ${chipHtml("Sessions", crew, crewD)}
-    </span>
-    <span class="live-status-divider" aria-hidden="true"></span>
-    <span class="live-status-group" aria-label="Conditions data">
-      ${chipHtml("Wind", windState, windDetail)}
-      ${chipHtml("Tides", tideState, tideDetail)}
-    </span>
+  el.innerHTML = `<div class="live-status-inner" aria-label="Connection status">
+    ${pillHtml("Weather", weatherState, weatherDetail())}
+    ${pillHtml("Your data", crewState, crewDetail())}
   </div>`;
 
   const legacy = document.getElementById("sync-status");
