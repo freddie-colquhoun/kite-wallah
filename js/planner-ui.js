@@ -33,6 +33,7 @@ import {
   resolveCrewPackedKites,
 } from "./plan-travel.js";
 import { allocateKitesForRiders } from "./kite-allocation.js";
+import { buildRiderKiteDisplayHtml } from "./fair-kite-allocation.js";
 import { formatKt } from "./format.js";
 import {
   windHourStyle,
@@ -766,6 +767,8 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
               ? renderRelevantSessionNoteHtml(profile, spot, recR, assign)
               : "";
 
+          const kiteDisplay = buildRiderKiteDisplayHtml(assign ?? null, unassigned ?? null);
+
           return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">
             <header class="plan-rider-day-head">
               <h5>${escapeHtml(plan.profileName)}</h5>
@@ -773,11 +776,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             </header>
             ${
               recR
-                ? `<p class="plan-rider-kite-line"><strong>${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</strong>${assign ? ` <span class="plan-rider-fit">${assign.score}% need-fit</span>` : ""}</p>
-                ${assign?.fairnessNote ? `<p class="plan-rider-fairness">${escapeHtml(assign.fairnessNote)}</p>` : ""}
-                ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="hint-tight plan-rider-solo">Would pick ${escapeHtml(assign.soloPick.name)} if riding alone.</p>` : ""}
-                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
-                ${sessionNoteHtml}`
+                ? `${kiteDisplay?.html ?? `<p class="plan-rider-kite-line"><strong>Recommended kite:</strong> ${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</p>`}${sessionNoteHtml}`
                 : `<p class="hint-tight">Not worth rigging for this rider today.</p>`
             }
           </article>`;
@@ -869,7 +868,7 @@ function renderBringKitHtml(kit, dayDate) {
 
   const warn =
     kit.hasGap && kit.rentalNeeds.length
-      ? `<p class="plan-bring-warn">Gap in your quiver for this forecast. Rent or borrow the sizes below.</p>`
+      ? `<p class="plan-bring-warn">Gap in your quiver for the main ride window. Rent or borrow the sizes below.</p>`
       : "";
 
   const sectionTitle = kit.travelMode === "renting" ? "What to rent" : "What to bring";

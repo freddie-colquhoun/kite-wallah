@@ -55,8 +55,8 @@ function rawNeedScore(conditions, kite, riderWeight, calibration, minAdequate) {
   const idealSize = idealKiteSizeForWind(wind, riderWeight);
   const sizeDelta = kite.size - idealSize;
 
-  if (sizeDelta > 1) need -= 35 + Math.round((sizeDelta - 1) * 12);
-  else if (sizeDelta > 0.5) need -= 20;
+  if (sizeDelta > 1) need -= 45 + Math.round((sizeDelta - 1) * 15);
+  else if (sizeDelta > 0.5) need -= 28;
   else if (sizeDelta < -1) need -= 28;
   else if (sizeDelta < -0.5) need -= 12;
 
@@ -264,6 +264,84 @@ function explainPoorRemainingKiteFit(rider, pick, minAdequate, idealSize) {
   return parts.slice(0, 2).join(" ");
 }
 
+function escapeAllocHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * @param {KiteAssignment|null} assign
+ * @param {UnassignedRider|null} unassigned
+ * @returns {{ html: string, isWarn: boolean }|null}
+ */
+export function buildRiderKiteDisplayHtml(assign, unassigned) {
+  const solo = assign?.soloPick ?? unassigned?.soloPick ?? null;
+  const idealLabel = solo?.name ?? null;
+
+  if (assign && !unassigned) {
+    const assignedName = assign.kite.name;
+    const fit = ` <span class="plan-rider-fit">${assign.score}% need-fit</span>`;
+    if (solo && solo.id === assign.kite.id) {
+      return {
+        html: `<p class="plan-rider-kite-line"><strong>Recommended kite:</strong> ${escapeAllocHtml(assignedName)}${fit}</p>`,
+        isWarn: false,
+      };
+    }
+    return {
+      html: `<p class="plan-rider-kite-line"><strong>Ideal kite:</strong> ${escapeAllocHtml(idealLabel || assignedName)}</p>
+        <p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> ${escapeAllocHtml(assignedName)}${fit} — best available from the shared quiver.</p>`,
+      isWarn: false,
+    };
+  }
+
+  if (unassigned) {
+    const rentSize = solo?.size;
+    const idealLine = idealLabel
+      ? `<p class="plan-rider-kite-line"><strong>Ideal kite:</strong> ${escapeAllocHtml(idealLabel)}</p>`
+      : "";
+    const rentLine = rentSize
+      ? `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent ~${rentSize}m for this wind.</p>`
+      : `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent a suitable size for this wind.</p>`;
+    return {
+      html: `<div class="plan-rider-kite-warn-block">${idealLine}<p class="plan-rider-kite-line">No workable kite in the shared bag for the main ride window.</p>${rentLine}</div>`,
+      isWarn: true,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Solo ideal if free; else largest suitable (heavier) or smallest (lighter).
+ * @param {ReturnType<typeof scoreRiderAgainstAllKites> & RiderAllocInput} r
+ * @param {Set<string>} usedIds
+ * @param {number} medianWeight
+ */
+function pickKiteForSharedQuiver(r, usedIds, medianWeight) {
+  const weight = r.conditions.riderWeight ?? 75;
+  const suitable = r.scored.filter(
+    (s) => s.need >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id)
+  );
+  if (!suitable.length) {
+    return r.scored.find((s) => !usedIds.has(s.kite.id)) ?? null;
+  }
+
+  const soloId = r.solo?.kite?.id;
+  if (soloId) {
+    const soloRow = suitable.find((s) => s.kite.id === soloId);
+    if (soloRow) return soloRow;
+  }
+
+  const preferLarge = weight >= medianWeight;
+  const sorted = [...suitable].sort((a, b) =>
+    preferLarge ? b.kite.size - a.kite.size : a.kite.size - b.kite.size
+  );
+  return sorted[0];
+}
+
 /**
  * @param {RiderAllocInput & { minAdequate?: number|null, idealSize?: number }} r
  * @param {{ kite: Kite, need: number, rec: ReturnType<typeof recommendKite>|null }} pick
@@ -287,10 +365,7 @@ function buildPoorFitUnassignedMessage(r, pick) {
  */
 export function buildAllocationConflictGuidance(riders, alloc, allKites) {
   const hasShortage = alloc.unassigned.length > 0;
-  const hasSwaps = alloc.assignments.some(
-    (a) => a.soloPick && a.soloPick.id !== a.kite.id
-  );
-  if (!hasShortage && !hasSwaps) return null;
+  if (!hasShortage) return null;
 
   const wind = riders[0]?.conditions.windSpeed;
   const windLabel = wind != null ? `${formatKt(wind)} kt` : "this wind";
@@ -420,6 +495,12 @@ export function allocateKitesFairly(riders, allKites) {
       (b.conditions.riderWeight ?? 75) - (a.conditions.riderWeight ?? 75)
   );
 
+  const weights = enriched.map((r) => r.conditions.riderWeight ?? 75).sort((a, b) => a - b);
+  const medianWeight =
+    weights.length % 2
+      ? weights[(weights.length - 1) / 2]
+      : (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2;
+
   const usedIds = new Set();
   /** @type {KiteAssignment[]} */
   const assignments = [];
@@ -427,11 +508,7 @@ export function allocateKitesFairly(riders, allKites) {
   const unassigned = [];
 
   for (const r of enriched) {
-    const suitable = r.scored.filter(
-      (s) => s.need >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id)
-    );
-    const fallback = r.scored.find((s) => !usedIds.has(s.kite.id));
-    const pick = suitable[0] || fallback;
+    const pick = pickKiteForSharedQuiver(r, usedIds, medianWeight);
 
     if (!pick) {
       unassigned.push({
@@ -463,14 +540,7 @@ export function allocateKitesFairly(riders, allKites) {
       score: pick.need,
       soloPick: r.solo?.kite ?? null,
       kiteRec: pick.rec,
-      fairnessNote: buildFairnessNote(
-        r,
-        pick.kite,
-        r.solo?.kite ?? null,
-        r.minAdequate,
-        r.conditions,
-        rideable
-      ),
+      fairnessNote: null,
     });
   }
 

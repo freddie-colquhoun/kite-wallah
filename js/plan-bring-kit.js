@@ -106,57 +106,49 @@ export async function buildPlanBringKit({
   );
   const spread = gustSpread(avgWind, peakGust);
   const gusty = spread > limits.maxGustSpread * 0.75;
+  const mainWindowTimes = new Set((rideable?.hours ?? []).map((h) => h.time));
 
   for (const pick of hourly) {
+    const inMainWindow = mainWindowTimes.has(pick.time);
+    if (!inMainWindow) continue;
+
     if (pick.kiteId && pick.score != null && pick.score >= MIN_QUIVER_FIT - 8) {
       bringIds.add(pick.kiteId);
       const k = quiverById.get(pick.kiteId);
-      if (k) {
-        addAdjacentSizes(bringIds, k.size, kites);
-        if (gusty) addAdjacentSizes(bringIds, k.size, kites, true);
-      }
+      if (k) addAdjacentSizes(bringIds, k.size, kites);
     }
 
     const needSize =
       pick.kiteSize ??
       inferSizeFromWind(pick.windSpeed, profile.weight, limits);
-    const prev = sizeNeeds.get(needSize);
     const score = pick.score ?? 0;
-    if (
-      !prev ||
-      score < prev.score ||
-      (score === prev.score && pick.windSpeed > prev.wind)
-    ) {
-      sizeNeeds.set(needSize, {
-        wind: pick.windSpeed,
-        gust: pick.gustSpeed,
-        score,
-      });
-    }
+    const quiverWeak =
+      score < MIN_RENTAL_TRIGGER ||
+      !pick.kiteId ||
+      !quiverById.has(pick.kiteId);
 
-    if (
-      pick.score != null &&
-      pick.score < MIN_RENTAL_TRIGGER &&
-      (!pick.kiteId || !quiverById.has(pick.kiteId))
-    ) {
-      const fallbackSize = pick.kiteSize ?? inferSizeFromWind(pick.windSpeed, profile.weight, limits);
-      sizeNeeds.set(fallbackSize, {
-        wind: pick.windSpeed,
-        gust: pick.gustSpeed,
-        score: pick.score,
-      });
+    if (quiverWeak) {
+      const prev = sizeNeeds.get(needSize);
+      if (
+        !prev ||
+        score < prev.score ||
+        (score === prev.score && pick.windSpeed > prev.wind)
+      ) {
+        sizeNeeds.set(needSize, {
+          wind: pick.windSpeed,
+          gust: pick.gustSpeed,
+          score,
+        });
+      }
     }
   }
 
-  if (gusty && quiverSizes.length) {
-    const smallest = quiverSizes[0];
-    const sk = kites.find((k) => k.size === smallest);
-    if (sk) bringIds.add(sk.id);
-  }
-
-  if (rideable && quiverSizes.length) {
-    const maxPick = hourly.reduce((a, b) =>
-      (b.windSpeed > (a?.windSpeed ?? 0) ? b : a), hourly[0]);
+  if (rideable && quiverSizes.length && mainWindowTimes.size) {
+    const mainPicks = hourly.filter((p) => mainWindowTimes.has(p.time));
+    const maxPick = mainPicks.reduce(
+      (a, b) => (b.windSpeed > (a?.windSpeed ?? 0) ? b : a),
+      mainPicks[0]
+    );
     if (maxPick?.kiteId) {
       const k = quiverById.get(maxPick.kiteId);
       if (k) addAdjacentSizes(bringIds, k.size, kites);
@@ -176,12 +168,8 @@ export async function buildPlanBringKit({
             size: k.size,
             note:
               travelMode === "packed"
-                ? gusty && k.size === quiverSizes[0]
-                  ? "Gust insurance (packed)"
-                  : "Packed · covers forecast hours"
-                : gusty && k.size === quiverSizes[0]
-                  ? "Gust insurance"
-                  : "Covers forecast hours",
+                ? "Packed · main ride window"
+                : "Main ride window",
           }));
 
   /** @type {PlanRentalNeed[]} */
@@ -231,12 +219,12 @@ export async function buildPlanBringKit({
       referenceGust: ref.gust,
       why:
         travelMode === "renting"
-          ? `Best rental options for ~${size}m at ${formatKt(ref.wind)} kt`
+          ? `Best rental options for ~${size}m in your main ride window (${formatKt(ref.wind)} kt)`
           : quiverEmpty
-            ? `No kites in quiver — need ~${size}m for ${formatKt(ref.wind)} kt`
+            ? `No kites in quiver — need ~${size}m for the main ride window (${formatKt(ref.wind)} kt)`
             : !bestAtSize
-              ? `No ${size}m in packed bag for ${formatKt(ref.wind)} kt hours`
-              : `Your ${size}m options score low (~${bestAtSize.score}%) at ${formatKt(ref.wind)} kt — consider renting`,
+              ? `No ${size}m in packed bag for the main ride window (${formatKt(ref.wind)} kt)`
+              : `Your ${size}m options score low (~${bestAtSize.score}%) in the main ride window — consider renting`,
       ranked,
     });
   }
@@ -263,14 +251,12 @@ export async function buildPlanBringKit({
       "No kites in the app yet. Sizes below are what the forecast calls for; expand each for best models to hire.";
   } else if (travelMode === "packed" && bring.length) {
     headline = `Packed ${bring.length} kite${bring.length > 1 ? "s" : ""}: ${bring.map((b) => b.name).join(", ")}`;
-    riskNote = gusty
-      ? "Gusty day — your smallest packed kite is worth rigging too. Hourly picks use only what you brought."
-      : "Only kites you ticked as packed are used for recommendations.";
+    riskNote = "Only kites you ticked as packed are used for recommendations.";
   } else if (bring.length) {
     headline = `Bring ${bring.length} kite${bring.length > 1 ? "s" : ""}: ${bring.map((b) => b.name).join(", ")}`;
     riskNote = gusty
-      ? "Gusty day — bringing a smaller kite as well is worth it. Check hourly picks before you rig."
-      : "Risk-averse pick: covers forecast hours plus one size up/down where you have them.";
+      ? "Gusty day — sizes below cover your main ride window (check hourly picks before you rig)."
+      : "Covers your main powered ride window, plus one size up/down where you have them.";
   } else {
     headline =
       travelMode === "packed" ? "Packed bag may not cover this day" : "Your quiver may not cover this day";
