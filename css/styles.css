@@ -3217,6 +3217,35 @@ textarea {
   padding-left: 0;
 }
 
+.kite-allocation-conflict {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.kite-allocation-conflict p {
+  margin: 0 0 0.35rem;
+}
+
+.kite-allocation-conflict p:last-child {
+  margin-bottom: 0;
+}
+
+.plan-alloc-conflict {
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+}
+
+.plan-alloc-conflict-title {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.875rem;
+}
+
 .kite-allocation-warn-item {
   margin-bottom: 0.35rem;
 }

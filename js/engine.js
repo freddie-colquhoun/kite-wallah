@@ -98,6 +98,14 @@ export function genericKiteWindRange(size, riderWeight = REFERENCE_WEIGHT) {
   };
 }
 
+/** Approximate ideal kite size (m²) at this wind for rider weight — crew allocation. */
+export function idealKiteSizeForWind(windSpeed, riderWeight = REFERENCE_WEIGHT) {
+  const base = (42 - windSpeed) / 2.8;
+  const weightFactor = riderWeight / REFERENCE_WEIGHT;
+  const size = base * Math.pow(weightFactor, 0.4);
+  return Math.max(3, Math.round(size * 2) / 2);
+}
+
 /** @param {Kite} kite @param {number} [riderWeight] */
 export function getKiteWindRange(kite, riderWeight = REFERENCE_WEIGHT) {
   if (kite.windRange) return { ...kite.windRange };

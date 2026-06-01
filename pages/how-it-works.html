@@ -179,10 +179,11 @@
           <li>
             <strong>Fair allocation</strong> (shared physical quiver — not renting):
             <ul>
-              <li>Score every rider against every kite with a <strong>need</strong> score (not just preference): base kite fit + penalties if kite too small vs session history (“too small” / couldn’t ride near this wind) + weight bump for heavy riders.</li>
-              <li>Sort riders by fewest viable kites first (scarcest need gets served first).</li>
-              <li>Assign each kite at most once; prefer highest <strong>necessity</strong> (how much worse their next option is).</li>
-              <li><strong>Fairness note</strong> when solo pick ≠ assigned kite (e.g. heavier rider needs the 12m).</li>
+              <li>Score every rider against every kite with a <strong>need</strong> score: chart fit, session history, and penalties if a kite is much larger or smaller than ideal for that rider’s weight at this wind.</li>
+              <li>Assign in <strong>weight order</strong> (heaviest first): each rider takes the best remaining kite. That keeps larger sails with heavier riders and smaller sails with lighter riders.</li>
+              <li>Assign each physical kite at most once.</li>
+              <li>If the bag cannot cover everyone, a <strong>How to split kit</strong> note suggests deciding by weight and confidence (e.g. heaviest on the largest kite; more confident rider on the next size; less confident rider rents).</li>
+              <li><strong>Fairness note</strong> when solo pick ≠ assigned kite.</li>
               <li>If no kite left → “may need to rent” for that rider.</li>
             </ul>
           </li>

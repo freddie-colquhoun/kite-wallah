@@ -264,9 +264,21 @@ function getPlanCrewAllocationHint() {
     return "Renting mode: each rider gets their own catalog pick (weight-adjusted). No shared-bag split.";
   }
   if (travel.enabled && travel.mode === "packed") {
-    return "Packed bag only: assigned by who needs the power (weight + session history), not preference.";
+    return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
-  return "Shared quiver: assigned by who needs the power (weight + session history), not who enjoys a kite more.";
+  return "Shared quiver: heaviest rider picks first from available kites; lighter riders get smaller sizes. Confidence matters too — see notes when kit is tight.";
+}
+
+/** @param {string|null|undefined} guidance */
+function renderPlanConflictGuidanceHtml(guidance) {
+  if (!guidance) return "";
+  return `<div class="plan-alloc-conflict card card-slim" role="note">
+    <h5 class="plan-alloc-conflict-title">How to split kit when it is tight</h5>
+    ${guidance
+      .split("\n")
+      .map((line) => `<p class="hint-tight">${escapeHtml(line)}</p>`)
+      .join("")}
+  </div>`;
 }
 
 function isPlanTravelEnabled() {
@@ -787,6 +799,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             <h4 class="plan-crew-riders-title">Who flies what</h4>
             <p class="hint hint-tight plan-crew-fair-hint">${escapeHtml(getPlanCrewAllocationHint())}</p>
           </div>
+          ${renderPlanConflictGuidanceHtml(dayAlloc?.conflictGuidance)}
           <div class="plan-crew-riders-grid">${ridersHtml}</div>
         </section>
         ${tipsHtml}

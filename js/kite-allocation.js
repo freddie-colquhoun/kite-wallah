@@ -50,6 +50,7 @@ const MIN_SUITABLE_SCORE = 45;
  * @property {UnassignedRider[]} unassigned
  * @property {number} needRental
  * @property {string} bannerHtml
+ * @property {string|null} [conflictGuidance]
  */
 
 /**
@@ -103,7 +104,11 @@ export function allocateKitesForRiders(riders, allKites, opts = {}) {
   }
 
   if (rideableRiders.length >= 2) {
-    return allocateKitesFairly(rideableRiders, allKites);
+    const result = allocateKitesFairly(rideableRiders, allKites);
+    return {
+      ...result,
+      bannerHtml: renderAllocationBannerHtml(result, contextLabel),
+    };
   }
 
   if (rideableRiders.length === 1) {
@@ -132,13 +137,13 @@ export function allocateKitesForRiders(riders, allKites, opts = {}) {
             soloPick: null,
           },
         ];
-    const result = {
+    return {
       assignments,
       unassigned,
       needRental: 0,
       bannerHtml: "",
+      conflictGuidance: null,
     };
-    return result;
   }
 
   return emptyAllocation(contextLabel);
@@ -151,6 +156,7 @@ function emptyAllocation(contextLabel) {
     unassigned: [],
     needRental: 0,
     bannerHtml: "",
+    conflictGuidance: null,
   };
 }
 
@@ -159,10 +165,17 @@ function emptyAllocation(contextLabel) {
  * @param {string} contextLabel
  */
 function renderAllocationBannerHtml(alloc, contextLabel) {
-  if (!alloc.assignments.length && !alloc.unassigned.length) return "";
+  if (!alloc.assignments.length && !alloc.unassigned.length && !alloc.conflictGuidance) return "";
 
   const heading = contextLabel
     ? `<p class="kite-allocation-context">${escapeHtml(contextLabel)}</p>`
+    : "";
+
+  const conflict = alloc.conflictGuidance
+    ? `<div class="kite-allocation-conflict">${alloc.conflictGuidance
+        .split("\n")
+        .map((line) => `<p>${escapeHtml(line)}</p>`)
+        .join("")}</div>`
     : "";
 
   const rows = alloc.assignments
@@ -187,8 +200,9 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
 
   return `<div class="kite-allocation-banner card card-slim">
     <h3 class="kite-allocation-title">Who flies which kite</h3>
-    <p class="hint hint-tight">One kite per person — no doubling up the same kite at once.</p>
+    <p class="hint hint-tight">One kite per person — heavier riders pick from the bag first; lighter riders get smaller sizes.</p>
     ${heading}
+    ${conflict}
     ${rows ? `<ul class="kite-allocation-list">${rows}</ul>` : ""}
     ${warnings ? `<ul class="kite-allocation-warnings">${warnings}</ul>` : ""}
     ${rental}

@@ -1,8 +1,9 @@
 /**
  * Fair / safe shared-quiver allocation — need and fit, not who "likes" a kite more.
+ * Heavier riders are assigned first and penalize oversize on light riders.
  */
 
-import { recommendKite, getKiteWindRange } from "./engine.js";
+import { recommendKite, getKiteWindRange, idealKiteSizeForWind } from "./engine.js";
 import { inferPreferredSize } from "./calibration.js";
 import { formatKt } from "./format.js";
 
@@ -50,6 +51,14 @@ function rawNeedScore(conditions, kite, riderWeight, calibration, minAdequate) {
   if (!rec) return { need: 0, rec: null };
 
   let need = rec.score;
+  const wind = conditions.windSpeed;
+  const idealSize = idealKiteSizeForWind(wind, riderWeight);
+  const sizeDelta = kite.size - idealSize;
+
+  if (sizeDelta > 1) need -= 35 + Math.round((sizeDelta - 1) * 12);
+  else if (sizeDelta > 0.5) need -= 20;
+  else if (sizeDelta < -1) need -= 28;
+  else if (sizeDelta < -0.5) need -= 12;
 
   if (minAdequate != null) {
     if (kite.size + 0.25 < minAdequate) need -= 40;
@@ -57,8 +66,8 @@ function rawNeedScore(conditions, kite, riderWeight, calibration, minAdequate) {
   }
 
   const range = getKiteWindRange(kite, riderWeight);
-  if (conditions.windSpeed < range.min) need -= 15;
-  else if (conditions.windSpeed > range.max + 2) need -= 12;
+  if (wind < range.min) need -= 15;
+  else if (wind > range.max + 2) need -= 12;
 
   return { need: Math.round(Math.max(0, Math.min(100, need))), rec };
 }
@@ -100,6 +109,7 @@ function scoreRiderAgainstAllKites(rider, allKites) {
     solo: recommendKite(rider.conditions, allKites, rider.calibration),
     minAdequate,
     viableCount: scored.filter((s) => s.need >= MIN_SUITABLE_SCORE).length,
+    idealSize: idealKiteSizeForWind(rider.conditions.windSpeed, weight),
   };
 }
 
@@ -113,6 +123,7 @@ function scoreRiderAgainstAllKites(rider, allKites) {
  */
 function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions, allRiders) {
   const wind = formatKt(conditions.windSpeed);
+  const weight = conditions.riderWeight ?? 75;
   const parts = [];
 
   if (minAdequate != null && assigned.size >= minAdequate - 0.25) {
@@ -123,14 +134,14 @@ function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions, a
 
   if (soloPick && soloPick.id !== assigned.id) {
     const soloName = soloPick.name;
-    const heavier = allRiders.some(
+    const heavierUnassigned = allRiders.some(
       (r) =>
         r.profileId !== rider.profileId &&
-        (r.conditions.riderWeight ?? 75) < (conditions.riderWeight ?? 75) - 12
+        (r.conditions.riderWeight ?? 75) > weight + 8
     );
-    if (heavier) {
+    if (heavierUnassigned) {
       parts.push(
-        `Solo pick was ${soloName}, but the ${assigned.size}m goes to the rider who needs the power here — fairness over preference.`
+        `Solo pick was ${soloName}; ${assigned.name} kept so a heavier rider can take the larger kite in the bag.`
       );
     } else {
       parts.push(
@@ -143,14 +154,72 @@ function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions, a
 }
 
 /**
+ * Plain-language guidance when the quiver cannot give everyone a good match.
+ * @param {RiderAllocInput[]} riders
+ * @param {{ assignments: KiteAssignment[], unassigned: UnassignedRider[] }} alloc
+ * @param {Kite[]} allKites
+ */
+export function buildAllocationConflictGuidance(riders, alloc, allKites) {
+  const hasShortage = alloc.unassigned.length > 0;
+  const hasSwaps = alloc.assignments.some(
+    (a) => a.soloPick && a.soloPick.id !== a.kite.id
+  );
+  if (!hasShortage && !hasSwaps) return null;
+
+  const wind = riders[0]?.conditions.windSpeed;
+  const windLabel = wind != null ? `${formatKt(wind)} kt` : "this wind";
+  const byWeight = [...riders].sort(
+    (a, b) => (b.conditions.riderWeight ?? 75) - (a.conditions.riderWeight ?? 75)
+  );
+  const heaviest = byWeight[0];
+  const lightest = byWeight[byWeight.length - 1];
+
+  const lines = [
+    `Not enough ideal kites for everyone at ${windLabel}. Use weight and confidence — not just who likes a model:`,
+    "• Heavier riders usually need more power — they should get the largest kite each of you can hold down.",
+    "• Lighter riders do better on smaller sizes; avoid putting the biggest sail on the lightest person unless they are the strongest in gusts.",
+  ];
+
+  if (heaviest && lightest && heaviest.profileId !== lightest.profileId) {
+    lines.push(
+      `• One way to decide: ${heaviest.name} (heaviest, ~${heaviest.conditions.riderWeight ?? "?"} kg) takes the largest suitable kite; the more confident of the others takes the next size down; whoever is least comfortable in strong wind rents or uses the smallest spare.`
+    );
+  }
+
+  if (hasShortage) {
+    const names = alloc.unassigned.map((u) => u.name).join(", ");
+    lines.push(`• ${names} may need to rent or sit out unless you can swap bags.`);
+  }
+
+  const sizes = [...new Set(allKites.map((k) => k.size))].sort((a, b) => b - a);
+  if (sizes.length < riders.length && hasShortage) {
+    lines.push(
+      `• You have ${sizes.length} size${sizes.length === 1 ? "" : "s"} in the bag for ${riders.length} riders — plan a rental or rotate who rides each window.`
+    );
+  }
+
+  lines.push(
+    "Skills and confidence matter as much as weight — adjust if someone is much stronger or more cautious than the numbers suggest."
+  );
+
+  return lines.join("\n");
+}
+
+/**
  * @param {RiderAllocInput[]} riders
  * @param {Kite[]} allKites
- * @returns {GroupKiteAllocation & { assignments: (KiteAssignment & { fairnessNote?: string|null })[] }}
+ * @returns {GroupKiteAllocation & { assignments: (KiteAssignment & { fairnessNote?: string|null })[], conflictGuidance: string|null }}
  */
 export function allocateKitesFairly(riders, allKites) {
   const rideable = riders.filter((r) => r.rideable !== false);
   if (!rideable.length) {
-    return { assignments: [], unassigned: [], needRental: 0, bannerHtml: "" };
+    return {
+      assignments: [],
+      unassigned: [],
+      needRental: 0,
+      bannerHtml: "",
+      conflictGuidance: null,
+    };
   }
 
   if (rideable.length === 1) {
@@ -183,6 +252,7 @@ export function allocateKitesFairly(riders, allKites) {
           ],
       needRental: 0,
       bannerHtml: "",
+      conflictGuidance: null,
     };
   }
 
@@ -198,6 +268,19 @@ export function allocateKitesFairly(riders, allKites) {
       })),
       needRental: rideable.length,
       bannerHtml: "",
+      conflictGuidance: buildAllocationConflictGuidance(
+        rideable,
+        {
+          assignments: [],
+          unassigned: rideable.map((r) => ({
+            profileId: r.profileId,
+            name: r.name,
+            reason: /** @type {'no-kite'} */ ("no-kite"),
+            message: "Add kites on the Quiver tab.",
+          })),
+        },
+        []
+      ),
     };
   }
 
@@ -206,7 +289,10 @@ export function allocateKitesFairly(riders, allKites) {
     ...scoreRiderAgainstAllKites(r, allKites),
   }));
 
-  enriched.sort((a, b) => a.viableCount - b.viableCount);
+  enriched.sort(
+    (a, b) =>
+      (b.conditions.riderWeight ?? 75) - (a.conditions.riderWeight ?? 75)
+  );
 
   const usedIds = new Set();
   /** @type {KiteAssignment[]} */
@@ -214,53 +300,7 @@ export function allocateKitesFairly(riders, allKites) {
   /** @type {UnassignedRider[]} */
   const unassigned = [];
 
-  const kitesBySize = groupKitesBySize(allKites);
-
-  for (const kitesAtSize of kitesBySize.values()) {
-    if (kitesAtSize.length !== 1) continue;
-    const kite = kitesAtSize[0];
-    if (usedIds.has(kite.id)) continue;
-
-    /** @type {{ rider: (typeof enriched)[0], necessity: number, need: number }[]} */
-    const contenders = [];
-    for (const r of enriched) {
-      if (assignments.some((a) => a.profileId === r.profileId)) continue;
-      const row = r.scored.find((s) => s.kite.id === kite.id);
-      if (!row || row.need < MIN_SUITABLE_SCORE) continue;
-      const needsSize =
-        r.minAdequate != null && kite.size >= r.minAdequate - 0.25;
-      if (needsSize || row.necessity >= 12) {
-        contenders.push({ rider: r, necessity: row.necessity, need: row.need });
-      }
-    }
-
-    if (!contenders.length) continue;
-
-    contenders.sort((a, b) => b.necessity - a.necessity || b.need - a.need);
-    const winner = contenders[0].rider;
-    const row = winner.scored.find((s) => s.kite.id === kite.id);
-    usedIds.add(kite.id);
-    assignments.push({
-      profileId: winner.profileId,
-      name: winner.name,
-      kite,
-      score: row.need,
-      soloPick: winner.solo?.kite ?? null,
-      kiteRec: row.rec,
-      fairnessNote: buildFairnessNote(
-        winner,
-        kite,
-        winner.solo?.kite ?? null,
-        winner.minAdequate,
-        winner.conditions,
-        rideable
-      ),
-    });
-  }
-
   for (const r of enriched) {
-    if (assignments.some((a) => a.profileId === r.profileId)) continue;
-
     const suitable = r.scored.filter(
       (s) => s.need >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id)
     );
@@ -309,17 +349,8 @@ export function allocateKitesFairly(riders, allKites) {
   }
 
   const needRental = unassigned.filter((u) => u.reason === "shortage").length;
-  return { assignments, unassigned, needRental, bannerHtml: "" };
-}
+  const result = { assignments, unassigned, needRental, bannerHtml: "" };
+  const conflictGuidance = buildAllocationConflictGuidance(rideable, result, allKites);
 
-/** @param {Kite[]} kites */
-function groupKitesBySize(kites) {
-  /** @type {Map<string, Kite[]>} */
-  const map = new Map();
-  for (const k of kites) {
-    const key = String(k.size);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(k);
-  }
-  return map;
+  return { ...result, conflictGuidance };
 }
