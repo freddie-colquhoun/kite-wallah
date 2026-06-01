@@ -4038,6 +4038,31 @@ textarea {
   border: 1px solid var(--border-light);
 }
 
+.doc-pipeline {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-sm) 0 var(--space-md);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+  color: var(--text-muted);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.doc-feeling-table {
+  margin: 0.25rem 0 var(--space-sm);
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+}
+
+.doc-main h4 {
+  margin: var(--space-sm) 0 var(--space-xs);
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
 .doc-footer-links {
   margin-top: var(--space-lg);
   padding-top: var(--space-md);

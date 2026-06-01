@@ -30,6 +30,7 @@
         <nav class="doc-toc" aria-label="Contents">
           <h3>Contents</h3>
           <ol>
+            <li><a href="#pipeline">End-to-end pipeline</a></li>
             <li><a href="#inputs">Inputs the app uses</a></li>
             <li><a href="#ability">Ability → wind bands</a></li>
             <li><a href="#hour">Plan: each forecast hour</a></li>
@@ -39,6 +40,8 @@
             <li><a href="#plan-day">Plan: day kite line &amp; timing</a></li>
             <li><a href="#hourly">Plan: hourly sizes on the timeline</a></li>
             <li><a href="#multi">Multi-rider: who flies what</a></li>
+            <li><a href="#need-score">Need score, power target &amp; thresholds</a></li>
+            <li><a href="#session-compare">“From your log” comparison</a></li>
             <li><a href="#travel">Travelling mode</a></li>
             <li><a href="#bring">What to bring / rent</a></li>
             <li><a href="#now">Now tab</a></li>
@@ -47,6 +50,28 @@
             <li><a href="#ai">AI chat (optional)</a></li>
           </ol>
         </nav>
+
+        <h3 id="pipeline">End-to-end pipeline (single source of truth)</h3>
+        <p>
+          Every Plan day and Now recommendation follows the <strong>same ordered pipeline</strong>.
+          There is no separate “chat guess” path for kites — optional AI only explains what the code already computed.
+          Implementation modules are listed so you can trace behaviour in the repo.
+        </p>
+        <pre class="doc-pipeline" aria-label="Pipeline diagram">Forecast (Open-Meteo)
+  → hourly assessments (planner.js, assessSuitability in engine.js)
+  → best powered window (planner.js)
+  → day verdict per rider (planner.js)
+  → recommendKite() for solo pick (engine.js + calibration.js + kite-personal-range.js)
+  → [crew day] allocateKitesFairly() (fair-kite-allocation.js)
+  → rider card copy (buildRiderKiteDisplayHtml)
+  → “From your log” note (session-comparison.js)
+  → bring-kit union (plan-bring-kit.js)</pre>
+        <p>Three inputs are deliberately balanced (not “chart wins” or “sessions win” alone):</p>
+        <ul>
+          <li><strong>Thesis — chart &amp; physics:</strong> manufacturer wind range, weight/sex adjustment, generic ideal size formula, gust character.</li>
+          <li><strong>Antithesis — your sessions:</strong> per-kite comfort ranges, preferred size near this wind, underpowered/overpowered feelings.</li>
+          <li><strong>Synthesis — physical constraints:</strong> one kite per person in the bag; heaviest assigned first; rent only when the bag truly cannot work.</li>
+        </ul>
 
         <h3 id="inputs">1. Inputs the app uses</h3>
         <ul>
@@ -172,25 +197,159 @@
         </ul>
 
         <h3 id="multi">9. Multi-rider: who flies what (fair allocation)</h3>
-        <p>When two or more riders plan the same day at the same spot:</p>
+        <p>
+          When two or more riders plan the same day at the same spot (and travelling mode is <strong>not</strong> “renting”),
+          <code>allocateKitesFairly()</code> in <code>fair-kite-allocation.js</code> runs once per day using the
+          <strong>crew ride window</strong> wind: average speed and peak gust from the shared hero (same values as each rider’s solo Plan line).
+        </p>
         <ol class="doc-tree">
-          <li>One shared forecast timeline and hero (crew window).</li>
-          <li>For each rider who isn’t <strong>Skip</strong>, compute wind at the <strong>day window average</strong> (same as their solo day recommendation).</li>
+          <li>One shared forecast timeline and hero (crew window) — <code>planner-ui.js</code>.</li>
           <li>
-            <strong>Fair allocation</strong> (shared physical quiver — not renting):
+            For each rider whose day verdict is not <strong>Skip</strong>, build
+            <code>conditions</code>: weight, sex, ability, spot notes, <code>windSpeed = avgWind</code>,
+            <code>gustSpeed = peakGust</code>, water type — <code>profileToConditions()</code>.
+          </li>
+          <li>
+            <strong>Kite list</strong> = shared quiver at home, or ticked “packed bag” ids when travelling with kites.
+            Renting mode skips allocation entirely (each rider gets an independent catalog pick).
+          </li>
+          <li>
+            <strong>Step A — score matrix:</strong> for each rider, score every kite in the bag (see <a href="#need-score">§10</a>).
+            Also compute <strong>solo pick</strong> = <code>recommendKite(conditions, allKites, calibration)</code> (what they would ride if alone).
+          </li>
+          <li>
+            <strong>Step B — assign kites (one physical kite each):</strong>
             <ul>
-              <li>Score every rider against every kite with a <strong>need</strong> score: chart fit, session history, and penalties if a kite is much larger or smaller than ideal for that rider’s weight at this wind.</li>
-              <li>Assign in <strong>weight order</strong> (heaviest first): the heaviest rider always takes the <strong>largest kite left in the bag</strong> (even if a smaller kite scores higher on paper — three riders cannot all share the “best score” on one size); then solo ideal if still free; lighter riders take the <strong>smallest</strong> suitable kite left.</li>
-              <li>Assign each physical kite at most once.</li>
-              <li>If the bag cannot cover everyone, a <strong>How to split kit</strong> note suggests deciding by weight and confidence (e.g. heaviest on the largest kite; more confident rider on the next size; less confident rider rents).</li>
-              <li>Rider cards: <strong>Recommended kite</strong> when solo pick is available; otherwise <strong>Ideal kite</strong> + <strong>Recommendation</strong> (shared quiver), or rent guidance when nothing works.</li>
+              <li>Sort riders by <strong>weight descending</strong> (heaviest first).</li>
+              <li>Heaviest: pick unused kite <strong>closest to power target</strong> (not “largest in bag”).</li>
+              <li>Next riders: if solo kite still free and scores ≥ 45%, keep solo; else pick among remaining kites — prefer scores ≥ 45%, else session-adequate size, else best need-fit; then closest to power target.</li>
+              <li>Each kite id used at most once.</li>
             </ul>
           </li>
-          <li>Rider cards show: name, verdict, kite line above, and a <strong>From your log</strong> line only when a past session helps explain the pick (similar wind, size change, or how it felt).</li>
-          <li>Full wind story and timing live in the hero + “What to expect” — not duplicated in each rider card.</li>
+          <li>
+            <strong>Step C — accept or decline assignment:</strong>
+            <ul>
+              <li>Score ≥ 45% → normal assignment.</li>
+              <li>Score &lt; 45% but kite still in bag and <strong>not declined</strong> by session/wind rules → assign as <strong>Use from bag</strong> (compromise).</li>
+              <li>Only mark unassigned + <strong>Last resort: rent</strong> when no kite left, or the only leftover fails minimum session size / is dangerously underpowered on chart (see <a href="#need-score">§10</a>).</li>
+            </ul>
+          </li>
+          <li>
+            <strong>How to split kit when it is tight</strong> — plain-language conflict note when anyone is unassigned;
+            lists who got what from the bag and reminds you to use leftovers before renting.
+          </li>
+          <li>
+            Rider cards: verdict + kite lines from <code>buildRiderKiteDisplayHtml()</code>; optional
+            <a href="#session-compare">“From your log”</a> line; wind story stays in hero / What to expect only.
+          </li>
         </ol>
 
-        <h3 id="travel">10. Travelling mode (Plan setup)</h3>
+        <h3 id="need-score">10. Need score, power target &amp; thresholds</h3>
+        <p>
+          Crew allocation does <strong>not</strong> reuse the solo 0–100 score blindly. It builds a
+          <strong>need-fit %</strong> per rider × kite, then applies assignment rules. Constants (current code):
+        </p>
+        <ul>
+          <li><strong>45</strong> — <code>MIN_SUITABLE_SCORE</code>: “good enough” for a normal assignment.</li>
+          <li><strong>15</strong> — <code>MIN_HEAVY_TARGET_SCORE</code>: heaviest may keep a session-driven target kite with a low chart score.</li>
+          <li><strong>12</strong> — <code>MIN_BAG_LAST_RESORT_SCORE</code>: below this, a leftover kite is never forced from the bag.</li>
+        </ul>
+
+        <h4>10.1 Solo score (starting point)</h4>
+        <p>For each kite, need starts from <code>recommendKite(conditions, [thatKite], calibration).score</code> — the same engine as Plan/Now (catalog range, session-tuned effective range, calibration boost/penalty, gust character). See <a href="#kite-pick">§6</a>.</p>
+
+        <h4>10.2 Chart size vs ideal (when sessions don’t justify the size)</h4>
+        <p>
+          Compute <strong>ideal size (m²)</strong> for this wind and weight:
+          <code>(42 − windKt) / 2.8 × (weight / 75)^0.4</code>, rounded to nearest 0.5 m
+          (<code>idealKiteSizeForWind</code> in <code>engine.js</code>). Compare kite size to ideal:
+        </p>
+        <ul>
+          <li>More than 1 m larger → large penalty (chart says overpowered).</li>
+          <li>0.5–1 m larger → medium penalty.</li>
+          <li>More than 1 m smaller → penalty (underpowered vs chart).</li>
+          <li>0.5–1 m smaller → small penalty.</li>
+        </ul>
+        <p>
+          <strong>Session override:</strong> if the kite lies in the band
+          [session power floor − 0.5 m … session power floor + 2.5 m], those oversize penalties are
+          <em>not</em> applied, and a +18 boost is applied when size ≥ floor − 0.25 m.
+          Floor = max(minimum adequate size, typical preferred size near this wind).
+          This is why an 11 m can score well for a rider who was underpowered on 9 m in a similar-wind log even when the chart ideal is ~9 m.
+        </p>
+
+        <h4>10.3 Minimum adequate size from sessions</h4>
+        <p><code>inferMinAdequateKiteSize(wind, calibration, weight)</code>:</p>
+        <ol class="doc-tree">
+          <li>Consider sessions with wind within <strong>±4 kt</strong> of today’s window average.</li>
+          <li>For each entry with an <strong>underpowered</strong> feeling, compute preferred size = logged kite size + feeling adjustment (e.g. slightly underpowered on 9 m → 9.5 m; underpowered-rideable on 9 m → 10 m). See feeling table in <a href="#sessions">§14</a>.</li>
+          <li>If today’s wind is <strong>lighter</strong> than that session (by more than 2 kt), add up to <strong>+1.5 m</strong> extra need (0.5 m per 4 kt lighter, capped).</li>
+          <li>Take the maximum across matching sessions; add +0.5 m for riders ≥ 88 kg, another +0.5 m for ≥ 98 kg.</li>
+          <li>In need score: kite more than 0.25 m below minimum → −40; at or above minimum → +28.</li>
+        </ol>
+
+        <h4>10.4 Typical size near this wind</h4>
+        <p>
+          <code>getCalibrationAtWind(wind, entries)</code> weights all sessions (stronger weight within ±6 kt),
+          maps each to a preferred size via the same feeling adjustments, and returns a weighted
+          <strong>preferredSize</strong> plus confidence (none / low / medium / high). This feeds both the session power floor and the power target.
+        </p>
+
+        <h4>10.5 Power target (who should hold how much power)</h4>
+        <p><code>targetPowerSizeForRider</code> = maximum of:</p>
+        <ul>
+          <li>chart ideal size for weight at window average wind;</li>
+          <li>minimum adequate size (if any);</li>
+          <li>preferred size from calibration (if any);</li>
+          <li>solo pick size — only if solo score ≥ 40 and size ≥ target − 0.25 m.</li>
+        </ul>
+        <p>
+          Heaviest rider: among unused kites, choose the one <strong>closest to this target</strong>
+          (prefer smallest kite still ≥ target − 0.5 m). Lighter riders: after normal suitability rules,
+          also prefer closest to target among remaining kites. This is <em>not</em> “heaviest always takes the biggest kite in the bag.”
+        </p>
+
+        <h4>10.6 When rent is shown</h4>
+        <p>Rent is <strong>last resort</strong> copy only. A rider is unassigned (and rent suggested) when:</p>
+        <ul>
+          <li>no unused kite remains; or</li>
+          <li>the only leftover kite scores &lt; 12% need-fit; or</li>
+          <li>leftover is more than 0.5 m below session minimum adequate size; or</li>
+          <li>wind is more than 1.5 kt below catalog minimum for that kite; or</li>
+          <li>leftover is more than 1.5 m smaller than chart ideal <em>and</em> chart band is “light” / underpowered.</li>
+        </ul>
+        <p>
+          Otherwise they are assigned with <strong>Use from bag</strong> and an amber warning even if need-fit is 40–44%.
+          Suggested rent size uses the same power target logic (may bump up if the only leftover was too small).
+        </p>
+
+        <h3 id="session-compare">11. “From your log” comparison (Plan rider cards)</h3>
+        <p>
+          Separate from allocation scoring but uses the same session data.
+          <code>buildRelevantSessionNote()</code> in <code>session-comparison.js</code> picks one past session to explain the day card:
+        </p>
+        <ol class="doc-tree">
+          <li>
+            <strong>Pick session:</strong> prefer same spot id/name; else any log. Sort by wind match (± wind speed and gusts). Drop if best match is more than <strong>8 kt</strong> off forecast average.
+          </li>
+          <li>
+            <strong>Relevance gate</strong> — show note only if at least one of:
+            wind within 3 kt; same spot and within 6 kt; under/overpowered feeling within 6 kt;
+            recommended size differs by ≥ 1 m from logged kite within 6 kt; gust spread change ≥ 4 kt; spot notes within 5 kt.
+          </li>
+          <li>
+            <strong>Lead line</strong> may prefix: “You were underpowered in similar wind before —” when feeling was underpowered; or size vs today’s assigned kite differs.
+          </li>
+          <li>
+            <strong>Body</strong> — date, spot, wind then vs forecast now, kite name, feeling text, optional gust/water/notes.
+            Allocation already uses underpowered entries for minimum adequate size; this line is explanatory, not a second hidden rule.
+          </li>
+        </ol>
+        <p>
+          Crew “From your logs” in What to expect uses <code>buildCrewPastSessionLines()</code> — one similar log per rider (deduped), not the same algorithm as allocation.
+        </p>
+
+        <h3 id="travel">12. Travelling mode (Plan setup)</h3>
         <p>Tap <strong>Travelling: off</strong> on Plan to turn trip mode on (default is off — full crew quiver at home). When on, choose:</p>
         <ul>
           <li>
@@ -201,7 +360,7 @@
           </li>
         </ul>
 
-        <h3 id="bring">11. What to bring / rent (end of day card)</h3>
+        <h3 id="bring">13. What to bring / rent (end of day card)</h3>
         <p>Risk-averse <strong>crew bag</strong> summary after all recommendations:</p>
         <ol class="doc-tree">
           <li>Walk hours in the <strong>main powered ride window</strong> only; collect kites that cover those hours.</li>
@@ -211,7 +370,7 @@
         </ol>
         <p>Shown at the <strong>bottom</strong> of the day card as a consolidated recap.</p>
 
-        <h3 id="now">12. Now tab</h3>
+        <h3 id="now">14. Now tab</h3>
         <ol class="doc-tree">
           <li>Current (or manual) wind at selected spot.</li>
           <li>Same spot rules (sectors, tides) and ability band.</li>
@@ -220,22 +379,40 @@
           <li>Multi-rider Now: same fair allocation when several riders selected and spot is rideable.</li>
         </ol>
 
-        <h3 id="sessions">13. Sessions &amp; calibration</h3>
+        <h3 id="sessions">15. Sessions &amp; calibration</h3>
         <ul>
-          <li>Logging records wind, kite used, spot, and a <strong>how it felt</strong> slider (underpowered → perfect → overpowered).</li>
-          <li>Updates rider session count and per-kite comfort statistics.</li>
-          <li>Does <strong>not</strong> permanently remove kites from your list — it tunes scores and ranges.</li>
-          <li>Plan uses session history in scoring automatically; a short log note appears on a day card only when it is relevant to the recommendation.</li>
+          <li>Logging records wind, gusts, direction, kite used, spot, board, water state, and a <strong>how it felt</strong> slider (nine steps from very underpowered to very overpowered).</li>
+          <li>Each feeling maps to a <strong>size adjustment</strong> when inferring “what size would have been right”:</li>
+        </ul>
+        <ul class="doc-feeling-table">
+          <li>Couldn’t ride / very underpowered → +1.5 to +2 m vs kite used</li>
+          <li>Underpowered (rideable) / too small → +1 m</li>
+          <li>Slightly underpowered → +0.5 m</li>
+          <li>Just right / comfortable → no change</li>
+          <li>Slightly overpowered → −0.5 m</li>
+          <li>Overpowered (rideable) → −0.75 m</li>
+          <li>Too big → −1 m</li>
+          <li>Very overpowered → −1.5 m</li>
+        </ul>
+        <ul>
+          <li>
+            <strong>Per-kite range tuning</strong> (<code>kite-personal-range.js</code>): sessions on this kite id (full weight);
+            same-size sessions on other quiver kites (~35% weight). Builds effective min / comfort max / push max from feelings.
+          </li>
+          <li>
+            <strong>Score nudge</strong> (<code>applyCalibrationToScore</code>): near forecast wind, boost kites close to preferred size; penalize far off (stronger when confidence is high).
+          </li>
+          <li>Does <strong>not</strong> remove kites from the quiver — it changes scores, ranges, allocation minimums, and Plan notes.</li>
         </ul>
 
-        <h3 id="shared">14. Live shared data</h3>
+        <h3 id="shared">16. Live shared data</h3>
         <p>
           When Supabase is configured, crew quiver, riders, spots, and sessions sync for everyone.
           A green pulsing dot and <strong>Live shared data</strong> means cloud sync is active.
           If load fails, the app still opens using this device’s cache; use <strong>Retry</strong> in the banner.
         </p>
 
-        <h3 id="ai">15. AI chat (optional)</h3>
+        <h3 id="ai">17. AI chat (optional)</h3>
         <p>
           Built-in rules answer basic questions without payment. Optional OpenAI key under Plan → Options
           powers richer Plan/Now chat; key stays in your browser only.
