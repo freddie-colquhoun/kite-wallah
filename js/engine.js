@@ -273,8 +273,13 @@ export function recommendKite(conditions, kites, calibration = []) {
     .map((kite) => scoreKiteForConditions(conditions, kite, calibration))
     .sort((a, b) => b.score - a.score);
 
-  let targetSize = idealKiteSizeForWind(wind, weight);
-  if (cal.preferredSize != null) targetSize = Math.max(targetSize, cal.preferredSize);
+  let targetSize;
+  if (cal.preferredSize != null && (cal.confidence === "high" || cal.confidence === "medium")) {
+    targetSize = cal.preferredSize;
+  } else {
+    targetSize = idealKiteSizeForWind(wind, weight);
+    if (cal.preferredSize != null) targetSize = Math.max(targetSize, cal.preferredSize);
+  }
 
   const adequate = scored.filter((s) => s.kite.size >= targetSize - 0.5);
   const best = (adequate.length ? adequate : scored)[0];

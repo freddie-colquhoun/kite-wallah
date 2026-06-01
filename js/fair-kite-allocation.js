@@ -136,12 +136,17 @@ function countViableKitesForRider(r) {
 function targetPowerSizeForRider(r) {
   const weight = r.conditions.riderWeight ?? 75;
   const wind = r.conditions.windSpeed;
-  let target = r.idealSize ?? idealKiteSizeForWind(wind, weight);
+  const cal = getCalibrationAtWind(wind, r.calibration ?? []);
+
+  let target;
+  if (cal.preferredSize != null && (cal.confidence === "high" || cal.confidence === "medium")) {
+    target = cal.preferredSize;
+  } else {
+    target = r.idealSize ?? idealKiteSizeForWind(wind, weight);
+    if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
+  }
 
   if (r.minAdequate != null) target = Math.max(target, r.minAdequate);
-
-  const cal = getCalibrationAtWind(wind, r.calibration ?? []);
-  if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
 
   const idealSize = r.solo?.kite?.size;
   if (idealSize != null && (r.solo?.score ?? 0) >= 40 && idealSize >= target - 0.25) {
@@ -176,14 +181,22 @@ function pickBestFromPool(pool, isFirstPicker, powerTarget) {
   );
 }
 
-/** Target size (m) for Ideal / power — chart, sessions, weight. */
+/** Target size (m) for Ideal / power — sessions first, then chart, then weight. */
 function idealTargetSizeForRider(rider) {
   const weight = rider.conditions.riderWeight ?? 75;
   const wind = rider.conditions.windSpeed;
-  let target = idealKiteSizeForWind(wind, weight);
   const cal = getCalibrationAtWind(wind, rider.calibration ?? []);
-  if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
   const minAdequate = inferMinAdequateKiteSize(wind, rider.calibration ?? [], weight);
+
+  let target;
+  if (cal.preferredSize != null && (cal.confidence === "high" || cal.confidence === "medium")) {
+    // Session history is the primary signal when we have enough of it
+    target = cal.preferredSize;
+  } else {
+    target = idealKiteSizeForWind(wind, weight);
+    if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
+  }
+
   if (minAdequate != null) target = Math.max(target, minAdequate);
   return Math.round(target * 2) / 2;
 }
