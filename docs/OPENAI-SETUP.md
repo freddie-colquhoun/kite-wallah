@@ -16,11 +16,15 @@ Personal use with `gpt-4o-mini` is usually **pennies to ~£1/month**.
 
 **Plan → Options**
 
-1. Paste the key into **OpenAI API key** (stored only in this browser).
+1. Paste the key into **OpenAI API key** once — it is saved **on this device only** (not sent to crew cloud sync).
 2. Set **AI layer v2** to **Explain** or **Review**.
 3. Run **Plan sessions** or **Now** — look for the **v2 · AI** panel on each card.
 
 **Plan chat** (“Ask about this plan”) uses the same key.
+
+### Never type the key (your deploy only)
+
+In `js/config.js` set `OPENAI_API_KEY = "sk-…"` and redeploy. The key is embedded in the site JS — **only do this for a private site** (any visitor can extract it from DevTools). Do not commit a real key to a public GitHub repo.
 
 ## What AI does not change
 

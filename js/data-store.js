@@ -365,12 +365,19 @@ function applySnapshot(payload) {
   if (payload.settings) installSettings(payload.settings);
 }
 
+function settingsForCloudSync() {
+  const s = { ...readLocalSettings() };
+  delete s.openaiApiKey;
+  delete s.aiLayerMode;
+  return s;
+}
+
 function buildSnapshot() {
   return {
     version: 1,
     state: stripPhotosFromState(readLocalState()),
     spots: readLocalSpots(),
-    settings: readLocalSettings(),
+    settings: settingsForCloudSync(),
   };
 }
 

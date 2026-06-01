@@ -2,8 +2,10 @@
  * v2 AI layer mode — stored in app settings (browser-local).
  */
 
-import { loadSettings, saveSettings } from "./spots-storage.js";
-import { getOpenAiApiKey } from "./ai-client.js";
+import { getOpenAiApiKey, isOpenAiKeyFromConfig } from "./ai-client.js";
+import { getStoredAiLayerMode, setStoredAiLayerMode } from "./user-secrets.js";
+
+export { isOpenAiKeyFromConfig };
 
 /** @typedef {'off'|'explain'|'review'} AiLayerMode */
 
@@ -22,16 +24,12 @@ export const AI_LAYER_MODE_LABELS = {
 
 /** @returns {AiLayerMode} */
 export function getAiLayerMode() {
-  const m = loadSettings().aiLayerMode;
-  if (m === "explain" || m === "review") return m;
-  return "off";
+  return getStoredAiLayerMode();
 }
 
 /** @param {AiLayerMode} mode */
 export function setAiLayerMode(mode) {
-  const s = loadSettings();
-  s.aiLayerMode = mode === "explain" || mode === "review" ? mode : "off";
-  saveSettings(s);
+  setStoredAiLayerMode(mode === "explain" || mode === "review" ? mode : "off");
 }
 
 /** @returns {boolean} */

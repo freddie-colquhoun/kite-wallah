@@ -1,18 +1,22 @@
-import { loadSettings, saveSettings } from "./spots-storage.js";
+import {
+  getStoredOpenAiApiKey,
+  setStoredOpenAiApiKey,
+  isOpenAiKeyFromConfig,
+} from "./user-secrets.js";
 
 const SETTINGS_OPENAI_KEY = "openaiApiKey";
 
 export function getOpenAiApiKey() {
-  const s = loadSettings();
-  return s.openaiApiKey?.trim() || "";
+  return getStoredOpenAiApiKey();
 }
 
 /** @param {string} key */
 export function setOpenAiApiKey(key) {
-  const s = loadSettings();
-  s.openaiApiKey = key.trim();
-  saveSettings(s);
+  if (isOpenAiKeyFromConfig()) return;
+  setStoredOpenAiApiKey(key);
 }
+
+export { isOpenAiKeyFromConfig };
 
 /**
  * @param {Array<{ role: 'system'|'user'|'assistant', content: string }>} messages

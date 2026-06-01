@@ -48,7 +48,13 @@ import { sessionLevelLabel } from "./session-rating.js";
 import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
-import { getAiLayerMode, setAiLayerMode, isAiLayerEnabled } from "./ai-settings.js";
+import {
+  getAiLayerMode,
+  setAiLayerMode,
+  isAiLayerEnabled,
+  isOpenAiKeyFromConfig,
+} from "./ai-settings.js";
+import { migrateOpenAiKeyFromLegacySettings } from "./user-secrets.js";
 import {
   enrichPlanResultsWithAiV2,
   renderAiV2SlotHtml,
@@ -1385,10 +1391,37 @@ export function refreshPlanUi(state) {
   wireOpenAiSettingsOnce();
 }
 
-function wireOpenAiSettingsOnce() {
+function refreshOpenAiSettingsUi() {
+  migrateOpenAiKeyFromLegacySettings();
   const keyEl = document.getElementById("plan-openai-key");
   const modeEl = document.getElementById("ai-layer-mode");
   const statusEl = document.getElementById("openai-setup-status");
+  const fromConfig = isOpenAiKeyFromConfig();
+
+  if (keyEl) {
+    keyEl.value = fromConfig ? "•••••••• (from config.js)" : getOpenAiApiKey();
+    keyEl.readOnly = fromConfig;
+    keyEl.disabled = fromConfig;
+  }
+  if (modeEl) modeEl.value = getAiLayerMode();
+
+  if (!statusEl) return;
+  if (fromConfig) {
+    statusEl.textContent =
+      "Key loaded from config.js on this deploy — no need to type it in Options.";
+  } else if (!getOpenAiApiKey()) {
+    statusEl.textContent =
+      "Paste key once — saved on this device only (not shared with crew sync). Pennies per Plan run.";
+  } else if (!isAiLayerEnabled()) {
+    statusEl.textContent = "Key saved on this device. Set AI layer to Explain or Review.";
+  } else {
+    statusEl.textContent = "OpenAI ready — key remembered on this browser.";
+  }
+}
+
+function wireOpenAiSettingsOnce() {
+  const keyEl = document.getElementById("plan-openai-key");
+  const modeEl = document.getElementById("ai-layer-mode");
   const limitsEl = document.getElementById("ai-v2-limits");
 
   if (limitsEl && !limitsEl.dataset.loaded) {
@@ -1396,37 +1429,31 @@ function wireOpenAiSettingsOnce() {
     limitsEl.dataset.loaded = "1";
   }
 
-  if (!keyEl || keyEl.dataset.openaiWired === "1") return;
+  if (!keyEl || keyEl.dataset.openaiWired === "1") {
+    refreshOpenAiSettingsUi();
+    return;
+  }
   keyEl.dataset.openaiWired = "1";
 
-  keyEl.value = getOpenAiApiKey();
-  if (modeEl) modeEl.value = getAiLayerMode();
-
-  const syncOpenAiStatus = () => {
-    const key = keyEl.value.trim();
-    setOpenAiApiKey(key);
-    if (key && modeEl && getAiLayerMode() === "off") {
+  const persistKey = () => {
+    if (!isOpenAiKeyFromConfig()) setOpenAiApiKey(keyEl.value);
+    if (keyEl.value.trim() && getAiLayerMode() === "off" && modeEl) {
       setAiLayerMode("explain");
       modeEl.value = "explain";
     }
-    if (!statusEl) return;
-    if (!key) {
-      statusEl.textContent =
-        "No key — rules-only Plan/Now. Typical cost with a key: pennies per run (gpt-4o-mini).";
-    } else if (!isAiLayerEnabled()) {
-      statusEl.textContent = "Key saved. Set AI layer to Explain or Review, then run Plan.";
-    } else {
-      statusEl.textContent = "OpenAI ready — summaries on Plan/Now cards and Plan chat.";
-    }
+    refreshOpenAiSettingsUi();
   };
 
-  keyEl.addEventListener("input", syncOpenAiStatus);
-  keyEl.addEventListener("change", syncOpenAiStatus);
+  keyEl.addEventListener("input", persistKey);
+  keyEl.addEventListener("change", persistKey);
+  keyEl.addEventListener("blur", persistKey);
   if (modeEl) {
     modeEl.addEventListener("change", () => {
       setAiLayerMode(/** @type {import('./ai-settings.js').AiLayerMode} */ (modeEl.value));
-      syncOpenAiStatus();
+      refreshOpenAiSettingsUi();
     });
   }
-  syncOpenAiStatus();
+
+  window.addEventListener("crew-data-updated", refreshOpenAiSettingsUi);
+  refreshOpenAiSettingsUi();
 }
