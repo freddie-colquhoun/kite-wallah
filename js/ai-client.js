@@ -16,9 +16,10 @@ export function setOpenAiApiKey(key) {
 
 /**
  * @param {Array<{ role: 'system'|'user'|'assistant', content: string }>} messages
+ * @param {{ temperature?: number, maxTokens?: number }} [opts]
  * @returns {Promise<string>}
  */
-export async function chatCompletion(messages) {
+export async function chatCompletion(messages, opts = {}) {
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
     throw new Error("NO_API_KEY");
@@ -33,8 +34,8 @@ export async function chatCompletion(messages) {
     body: JSON.stringify({
       model: "gpt-4o-mini",
       messages,
-      max_tokens: 600,
-      temperature: 0.6,
+      max_tokens: opts.maxTokens ?? 600,
+      temperature: opts.temperature ?? 0.6,
     }),
   });
 

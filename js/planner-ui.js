@@ -48,6 +48,12 @@ import { sessionLevelLabel } from "./session-rating.js";
 import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
+import { getAiLayerMode, setAiLayerMode, isAiLayerEnabled } from "./ai-settings.js";
+import {
+  enrichPlanResultsWithAiV2,
+  renderAiV2SlotHtml,
+  renderAiV2LimitsHintHtml,
+} from "./ai-enrich.js";
 import { escapeHtml } from "./dom-safe.js";
 import { markWindFetched, markTidesFetched } from "./live-status.js";
 
@@ -859,6 +865,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       return `<article class="plan-day-card plan-day-card--crew plan-day-card--${crewVerdict}" data-day-date="${escapeHtml(date)}">
         ${heroHtml}
         ${conditionsPanel}
+        ${renderAiV2SlotHtml(`plan-${date}`)}
         ${tipsHtml}
         <section class="plan-crew-riders" aria-label="Kite assignment per rider">
           <div class="plan-crew-riders-head">
@@ -1019,6 +1026,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
         <article class="plan-day-card plan-day-card--${verdict}" data-day-date="${escapeHtml(day.date)}">
           ${heroHtml}
           ${conditionsPanel}
+          ${renderAiV2SlotHtml(`plan-${day.date}`)}
           ${tipsHtml}
           ${bringHtml}
         </article>`;
@@ -1284,6 +1292,24 @@ function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) 
     aiPanel.hidden = !hasPlans;
     if (hasPlans) wirePlanChat(state, plans, spot);
   }
+
+  if (hasPlans) {
+    const travel = getPlanTravelOptionsFromForm();
+    migrateProfilesToSharedQuiver(state);
+    const packedKites = travel.enabled
+      ? resolveCrewPackedKites(state, travel)
+      : (state.quiver?.kites ?? []);
+    const spotNotes = document.getElementById("plan-notes")?.value.trim() || "";
+    void enrichPlanResultsWithAiV2(
+      results,
+      plans,
+      state,
+      spot,
+      dayAllocations,
+      packedKites,
+      spotNotes
+    );
+  }
 }
 
 function wirePlanChat(state, plans, spot) {
@@ -1302,7 +1328,7 @@ function wirePlanChat(state, plans, spot) {
   };
 
   addMsg(
-    "Ask about your forecast  ·  best day, gusts, tides, or how it compares to a past session. Add an OpenAI key under Options for full AI; otherwise you get smart local answers.",
+    "Ask about your forecast — best day, gusts, tides, or a past session. Needs your OpenAI key under Plan → Options (same key as v2 AI summaries).",
     "assistant"
   );
 
@@ -1356,10 +1382,51 @@ export function refreshPlanUi(state) {
   renderPlanProfileSelector(state);
   wirePlanTravelUiOnce();
   syncPlanTravelPanel(state);
+  wireOpenAiSettingsOnce();
+}
+
+function wireOpenAiSettingsOnce() {
   const keyEl = document.getElementById("plan-openai-key");
-  if (keyEl && !keyEl.dataset.loaded) {
-    keyEl.value = getOpenAiApiKey();
-    keyEl.dataset.loaded = "1";
-    keyEl.addEventListener("change", () => setOpenAiApiKey(keyEl.value));
+  const modeEl = document.getElementById("ai-layer-mode");
+  const statusEl = document.getElementById("openai-setup-status");
+  const limitsEl = document.getElementById("ai-v2-limits");
+
+  if (limitsEl && !limitsEl.dataset.loaded) {
+    limitsEl.innerHTML = renderAiV2LimitsHintHtml();
+    limitsEl.dataset.loaded = "1";
   }
+
+  if (!keyEl || keyEl.dataset.openaiWired === "1") return;
+  keyEl.dataset.openaiWired = "1";
+
+  keyEl.value = getOpenAiApiKey();
+  if (modeEl) modeEl.value = getAiLayerMode();
+
+  const syncOpenAiStatus = () => {
+    const key = keyEl.value.trim();
+    setOpenAiApiKey(key);
+    if (key && modeEl && getAiLayerMode() === "off") {
+      setAiLayerMode("explain");
+      modeEl.value = "explain";
+    }
+    if (!statusEl) return;
+    if (!key) {
+      statusEl.textContent =
+        "No key — rules-only Plan/Now. Typical cost with a key: pennies per run (gpt-4o-mini).";
+    } else if (!isAiLayerEnabled()) {
+      statusEl.textContent = "Key saved. Set AI layer to Explain or Review, then run Plan.";
+    } else {
+      statusEl.textContent = "OpenAI ready — summaries on Plan/Now cards and Plan chat.";
+    }
+  };
+
+  keyEl.addEventListener("input", syncOpenAiStatus);
+  keyEl.addEventListener("change", syncOpenAiStatus);
+  if (modeEl) {
+    modeEl.addEventListener("change", () => {
+      setAiLayerMode(/** @type {import('./ai-settings.js').AiLayerMode} */ (modeEl.value));
+      syncOpenAiStatus();
+    });
+  }
+  syncOpenAiStatus();
 }

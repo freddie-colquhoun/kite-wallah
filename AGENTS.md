@@ -27,6 +27,8 @@ engine.js — scoreKiteForConditions / recommendKite / analyze (canonical scorin
 
 **Do not add a second scoring path.** Plan, Now, allocation, and bring-kit all call `scoreKiteForConditions` or `recommendKite` from `engine.js`.
 
+**v2 AI layer** (`decision-bundle.js`, `ai-layer.js`, `ai-enrich.js`) may only *narrate* the bundle — never override kite IDs or verdicts. See `docs/AI-V2.md`.
+
 ## Persistence
 
 - Mutate in-memory state via `installState` / `saveState` (`storage.js`) and spot helpers (`spots-storage.js`).

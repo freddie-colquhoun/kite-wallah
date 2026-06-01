@@ -68,6 +68,7 @@ export function readLocalSettings() {
  * @property {string|null} activeSpotId
  * @property {string} stormglassApiKey
  * @property {string} [openaiApiKey]
+ * @property {'off'|'explain'|'review'} [aiLayerMode]
  */
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];

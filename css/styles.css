@@ -3971,6 +3971,108 @@ textarea {
   color: var(--text-muted);
 }
 
+/* v2 AI layer (explain / review on decision bundle) */
+.ai-v2-slot {
+  margin: 0;
+}
+
+.ai-v2-slot--pending:empty {
+  min-height: 0;
+}
+
+.ai-v2-panel {
+  margin: var(--space-md) var(--space-xl) var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(88, 86, 214, 0.06) 0%, rgba(0, 122, 255, 0.05) 100%);
+  border: 1px solid rgba(88, 86, 214, 0.18);
+}
+
+.plan-day-card .ai-v2-panel {
+  margin-left: var(--space-lg);
+  margin-right: var(--space-lg);
+}
+
+.rider-result .ai-v2-panel {
+  margin: var(--space-md) 0;
+}
+
+.ai-v2-panel--loading {
+  opacity: 0.85;
+}
+
+.ai-v2-panel--error {
+  border-color: rgba(255, 59, 48, 0.25);
+  background: rgba(255, 59, 48, 0.04);
+}
+
+.ai-v2-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.ai-v2-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(88, 86, 214, 0.15);
+  color: #5856d6;
+}
+
+.ai-v2-mode,
+.ai-v2-status {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.ai-v2-body {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.ai-v2-body p {
+  margin: 0 0 0.5rem;
+}
+
+.ai-v2-body p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-v2-warnings {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8125rem;
+  color: #b45309;
+}
+
+.ai-v2-review-note {
+  margin-top: var(--space-sm);
+}
+
+.ai-v2-limits-wrap {
+  margin-top: var(--space-xs);
+}
+
+.ai-v2-limits {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.openai-setup-status {
+  margin-top: var(--space-xs);
+  color: var(--text-muted);
+}
+
+.openai-setup a {
+  color: var(--accent, #007aff);
+}
+
 .plan-rider-kite-fly {
   margin: 0 0 0.35rem;
   font-size: 1.0625rem;
