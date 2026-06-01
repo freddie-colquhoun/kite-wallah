@@ -19,6 +19,7 @@ export function setOpenAiApiKey(key) {
 export { isOpenAiKeyFromConfig };
 
 /**
+ * Browser → OpenAI is blocked by CORS and exposes the key. Use a server proxy before enabling AI in production.
  * @param {Array<{ role: 'system'|'user'|'assistant', content: string }>} messages
  * @param {{ temperature?: number, maxTokens?: number }} [opts]
  * @returns {Promise<string>}

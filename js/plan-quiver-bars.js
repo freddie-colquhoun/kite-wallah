@@ -1,5 +1,6 @@
 /**
- * Plan rider cards: fly kite + quiver wind-range bars.
+ * Plan rider cards: fly kite + full quiver wind-range bars (optional detail view).
+ * Crew "Who flies what" uses buildRiderKiteDisplayHtml in fair-kite-allocation.js instead.
  */
 
 import { scoreKiteForConditions } from "./engine.js";
@@ -17,8 +18,6 @@ import {
 /** @typedef {import('./engine.js').Kite} Kite */
 /** @typedef {import('./kite-allocation.js').KiteAssignment} KiteAssignment */
 /** @typedef {import('./kite-allocation.js').UnassignedRider} UnassignedRider */
-
-const MAX_BACKUP_ALTS = 2;
 
 /**
  * @param {RiderProfile} profile
@@ -65,23 +64,25 @@ export function buildRiderPlanKitePanelHtml(
       return b.score - a.score;
     });
 
-  const flyScored = scored.find((s) => s.kite.id === flyId);
-  const flyRange = flyScored
-    ? { min: flyScored.range.min, max: flyScored.range.max }
-    : { min: assign.kite.windRange?.min ?? 0, max: assign.kite.windRange?.max ?? 0 };
-  const flyFit = describeKiteFitShort(assign.score);
-  const flyFitHtml = flyFit
-    ? `<span class="plan-rider-fit">${escapeHtml(flyFit)}</span>`
-    : "";
-
-  const flyRow = `<div class="plan-kite-row plan-kite-row--fly">
+  const rows = scored
+    .map((s) => {
+      const isFly = s.kite.id === flyId;
+      const range = { min: s.range.min, max: s.range.max };
+      const fitScore = isFly ? assign.score : s.score;
+      const fit = describeKiteFitShort(fitScore);
+      const fitHtml = fit
+        ? `<span class="plan-rider-fit">${escapeHtml(fit)}</span>`
+        : "";
+      return `<div class="plan-kite-row${isFly ? " plan-kite-row--fly" : " plan-kite-row--alt"}">
         <div class="plan-kite-row-head">
-          <span class="plan-rider-kite-fly-label">Fly</span>
-          <strong class="plan-kite-row-name">${escapeHtml(assign.kite.name)}</strong>
-          ${flyFitHtml}
+          ${isFly ? `<span class="plan-rider-kite-fly-label">Fly</span>` : ""}
+          <strong class="plan-kite-row-name">${escapeHtml(s.kite.name)}</strong>
+          ${fitHtml}
         </div>
-        ${renderWindBar(windKt, flyRange)}
+        ${renderWindBar(windKt, range)}
       </div>`;
+    })
+    .join("");
 
   const compromised = assign.score < MIN_SUITABLE_SCORE;
   const flySub = compromised
@@ -99,60 +100,8 @@ export function buildRiderPlanKitePanelHtml(
     idealHtml = `<p class="plan-rider-kite-solo-ideal hint-tight">Ideal: ${escapeHtml(ideal.name)}${gap}</p>`;
   }
 
-  const shownIds = new Set([flyId]);
-  if (ideal) shownIds.add(ideal.id);
-
-  const crewLines = crewAssignments
-    .filter((a) => a.profileId !== profile.id && a.kite.id !== flyId)
-    .map(
-      (a) =>
-        `<li><span class="plan-kite-crew-who">${escapeHtml(a.profileName)}</span> ${escapeHtml(a.kite.name)}</li>`
-    );
-  for (const a of crewAssignments) {
-    if (a.profileId !== profile.id) shownIds.add(a.kite.id);
-  }
-
-  const backupAlts = scored
-    .filter(
-      (s) =>
-        s.kite.id !== flyId &&
-        !(ideal && s.kite.id === ideal.id) &&
-        !shownIds.has(s.kite.id) &&
-        s.score >= MIN_SUITABLE_SCORE
-    )
-    .slice(0, MAX_BACKUP_ALTS);
-  for (const s of backupAlts) shownIds.add(s.kite.id);
-
-  const altRows = backupAlts
-    .map((s) => {
-      const fit = describeKiteFitShort(s.score);
-      return `<div class="plan-kite-row plan-kite-row--compact">
-          <span class="plan-kite-row-name">${escapeHtml(s.kite.name)}</span>
-          ${fit ? `<span class="plan-rider-fit">${escapeHtml(fit)}</span>` : ""}
-        </div>`;
-    })
-    .join("");
-
-  const crewHtml =
-    crewLines.length > 0
-      ? `<ul class="plan-kite-crew-others">${crewLines.join("")}</ul>`
-      : "";
-
-  const rest = quiverKites.filter((k) => !shownIds.has(k.id));
-  const restHtml =
-    rest.length > 0
-      ? `<p class="plan-kite-bag-rest"><span class="plan-kite-bag-rest-label">Rest of bag</span> ${rest
-          .map((k) => `<span class="plan-kite-chip">${escapeHtml(k.name)}</span>`)
-          .join("")}</p>`
-      : "";
-
-  const altsBlock =
-    altRows || crewHtml
-      ? `<div class="plan-kite-alts">${crewHtml}${altRows}</div>`
-      : "";
-
   return {
-    html: `<div class="plan-kite-quiver">${flyRow}${flySub}${idealHtml}${altsBlock}${restHtml}</div>`,
+    html: `<div class="plan-kite-quiver">${rows}${flySub}${idealHtml}</div>`,
     isWarn: compromised,
   };
 }

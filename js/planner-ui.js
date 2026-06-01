@@ -34,7 +34,7 @@ import {
   resolveCrewPackedKites,
 } from "./plan-travel.js";
 import { allocateKitesForRiders } from "./kite-allocation.js";
-import { buildRiderPlanKitePanelHtml } from "./plan-quiver-bars.js";
+import { buildRiderKiteDisplayHtml } from "./fair-kite-allocation.js";
 import { formatKt } from "./format.js";
 import {
   windHourStyle,
@@ -731,13 +731,7 @@ function renderPlanDayExpectationHtml(tips) {
 }
 
 function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations) {
-  const travel = getPlanTravelOptionsFromForm();
   migrateProfilesToSharedQuiver(state);
-  const packedKites = travel.enabled
-    ? resolveCrewPackedKites(state, travel)
-    : (state.quiver?.kites ?? []);
-  const spotNotes = document.getElementById("plan-notes")?.value.trim() || "";
-  const notes = [spotNotes, spot.localKnowledge].filter(Boolean).join(". ");
 
   const dates = [...new Set(plans.flatMap((p) => p.days.map((d) => d.date)))].sort();
 
@@ -840,15 +834,11 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
               : "";
 
           const kiteDisplay =
-            profile && (assign || unassigned)
-              ? buildRiderPlanKitePanelHtml(
-                  profile,
-                  packedKites,
-                  crewWindKt,
-                  recR?.peakGust,
-                  notes,
+            assign || unassigned
+              ? buildRiderKiteDisplayHtml(
                   assign ?? null,
                   unassigned ?? null,
+                  crewWindKt,
                   dayAlloc?.assignments ?? []
                 )
               : null;

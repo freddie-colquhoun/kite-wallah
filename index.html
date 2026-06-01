@@ -24,7 +24,6 @@
           el.classList.add("hidden");
         }
         window.addEventListener("error", hideLoadingOverlay);
-        window.addEventListener("unhandledrejection", hideLoadingOverlay);
         setTimeout(function () {
           if (!el.classList.contains("hidden")) {
             el.innerHTML =
