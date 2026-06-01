@@ -714,15 +714,8 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       const bringKit = mergeCrewBringKit(entries.map((e) => e.day.bringKit));
       const bringHtml = bringKit ? renderBringKitHtml(bringKit, date) : "";
 
-      const riderVerdictSummary = entries
-        .map((e) => {
-          const v = e.day.recommendation?.verdict ?? e.day.dayVerdict;
-          return `<span class="plan-crew-rider-chip plan-crew-rider-chip--${v}">${escapeHtml(e.plan.profileName)}: ${escapeHtml(dayVerdictLabel(v))}</span>`;
-        })
-        .join("");
-
       const heroHtml = rec
-        ? `<div class="plan-day-hero plan-day-hero--${crewVerdict}">
+        ? `<div class="plan-day-hero plan-day-hero--${crewVerdict} plan-day-hero--crew">
             <div class="plan-day-hero-body">
               ${title.prefix ? `<p class="plan-day-hero-prefix">${escapeHtml(title.prefix)}</p>` : ""}
               <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
@@ -733,29 +726,22 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
                 ${rec.windDirection ? ` ${escapeHtml(rec.windDirection)}` : ""}
                 ${rec.peakGust != null ? ` · gusts to <strong>${formatKt(rec.peakGust)}</strong> kt` : ""}
               </p>
-              <p class="plan-crew-rider-verdicts">${riderVerdictSummary}</p>
             </div>
-            <div class="plan-day-hero-aside">
-              <div class="plan-day-hero-verdict">${dayVerdictLabel(crewVerdict)}</div>
-              <p class="plan-crew-verdict-caption">Best crew window</p>
-              ${
-                crewVerdict === "go"
-                  ? `<div class="plan-day-hero-actions">
+            ${
+              crewVerdict === "go"
+                ? `<div class="plan-day-hero-aside">
+                    <div class="plan-day-hero-actions">
                       <button type="button" class="btn-go-anthem" title="Open Fortunate Son on YouTube"><span class="btn-play-icon" aria-hidden="true">▶</span> Play Fortunate Son</button>
-                    </div>`
-                  : ""
-              }
-            </div>
+                    </div>
+                  </div>`
+                : ""
+            }
           </div>`
-        : `<div class="plan-day-hero plan-day-hero--${crewVerdict}">
+        : `<div class="plan-day-hero plan-day-hero--${crewVerdict} plan-day-hero--crew">
             <div class="plan-day-hero-body">
               <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
               <p class="plan-day-spot-name">${escapeHtml(spotName)}</p>
               <p class="plan-day-hero-advice">No solid powered window for the crew this day.</p>
-              <p class="plan-crew-rider-verdicts">${riderVerdictSummary}</p>
-            </div>
-            <div class="plan-day-hero-aside">
-              <div class="plan-day-hero-verdict">${dayVerdictLabel(crewVerdict)}</div>
             </div>
           </div>`;
 
