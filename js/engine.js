@@ -267,12 +267,17 @@ export function recommendKite(conditions, kites, calibration = []) {
 
   const cal = getCalibrationAtWind(conditions.windSpeed, calibration);
   const wind = conditions.windSpeed;
+  const weight = conditions.riderWeight ?? 75;
 
   const scored = kites
     .map((kite) => scoreKiteForConditions(conditions, kite, calibration))
     .sort((a, b) => b.score - a.score);
 
-  const best = scored[0];
+  let targetSize = idealKiteSizeForWind(wind, weight);
+  if (cal.preferredSize != null) targetSize = Math.max(targetSize, cal.preferredSize);
+
+  const adequate = scored.filter((s) => s.kite.size >= targetSize - 0.5);
+  const best = (adequate.length ? adequate : scored)[0];
   const inRange = wind >= best.range.min && wind <= best.range.max;
   const inCatalog =
     wind >= best.catalog.min && wind <= best.catalog.max;

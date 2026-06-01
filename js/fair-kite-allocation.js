@@ -176,6 +176,33 @@ function pickBestFromPool(pool, isFirstPicker, powerTarget) {
   );
 }
 
+/** Target size (m) for Ideal / power — chart, sessions, weight. */
+function idealTargetSizeForRider(rider) {
+  const weight = rider.conditions.riderWeight ?? 75;
+  const wind = rider.conditions.windSpeed;
+  let target = idealKiteSizeForWind(wind, weight);
+  const cal = getCalibrationAtWind(wind, rider.calibration ?? []);
+  if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
+  const minAdequate = inferMinAdequateKiteSize(wind, rider.calibration ?? [], weight);
+  if (minAdequate != null) target = Math.max(target, minAdequate);
+  return Math.round(target * 2) / 2;
+}
+
+/**
+ * Ideal = best kite at or above target power size (not a smaller high-scoring kite).
+ * @param {RiderAllocInput} rider
+ * @param {Kite[]} allKites
+ * @param {ScoredRow[]} scored
+ */
+function pickIdealKiteRecommendation(rider, allKites, scored) {
+  const target = idealTargetSizeForRider(rider);
+  const adequate = scored.filter((s) => s.kite.size >= target - 0.5);
+  const pool = adequate.length
+    ? adequate.map((s) => s.kite)
+    : allKites;
+  return recommendKite(rider.conditions, pool, rider.calibration);
+}
+
 /** @param {RiderAllocInput} rider @param {Kite[]} allKites */
 function scoreRiderAgainstAllKites(rider, allKites) {
   const weight = rider.conditions.riderWeight ?? 75;
@@ -201,13 +228,13 @@ function scoreRiderAgainstAllKites(rider, allKites) {
     })
     .sort((a, b) => b.need - a.need);
 
-  const solo = recommendKite(rider.conditions, allKites, rider.calibration);
+  const solo = pickIdealKiteRecommendation(rider, allKites, scored);
 
   return {
     scored,
     solo,
     minAdequate,
-    idealSize: idealKiteSizeForWind(rider.conditions.windSpeed, weight),
+    idealSize: idealTargetSizeForRider(rider),
     viableCount: 0,
   };
 }

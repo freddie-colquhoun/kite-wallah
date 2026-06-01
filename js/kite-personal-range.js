@@ -40,6 +40,7 @@ import {
  * @property {'catalog'|'blend'|'sessions'|'size-hint'} source
  * @property {RangeConfidence} confidence
  * @property {import('./kite-character.js').KiteCharacter} [character]
+ * @property {number|null} [sessionWindMin] lowest wind (kt) you were happy on this size — unblended
  */
 
 /** Weight for same-size sessions on a different quiver kite */
@@ -173,6 +174,9 @@ export function getEffectiveKiteRange(kite, catalog, entries) {
     };
   }
 
+  const sessionWindMin =
+    personal.happyCount > 0 && personal.funMin != null ? personal.funMin : null;
+
   const blend =
     personal.source === "size-hint"
       ? 0.28
@@ -182,10 +186,18 @@ export function getEffectiveKiteRange(kite, catalog, entries) {
           ? 0.65
           : 1;
 
-  const funMin =
+  let funMin =
     personal.funMin != null
       ? Math.round((catalogAdj.min * (1 - blend) + personal.funMin * blend) * 10) / 10
       : catalogAdj.min;
+
+  if (
+    sessionWindMin != null &&
+    sessionWindMin > catalogAdj.min + 3 &&
+    sessionWindMin > funMin + 1
+  ) {
+    funMin = sessionWindMin;
+  }
 
   const comfortMax =
     personal.comfortMax != null
@@ -219,6 +231,7 @@ export function getEffectiveKiteRange(kite, catalog, entries) {
     source,
     confidence: personal.confidence,
     character,
+    sessionWindMin,
   };
 }
 
@@ -227,7 +240,18 @@ export function getEffectiveKiteRange(kite, catalog, entries) {
  * @param {EffectiveKiteRange} effective
  */
 export function scoreWindAgainstEffectiveRange(windSpeed, effective) {
-  const { min, ideal, max, catalog, personal } = effective;
+  const { min, ideal, max, catalog, personal, sessionWindMin } = effective;
+
+  if (
+    sessionWindMin != null &&
+    windSpeed < sessionWindMin - 0.5
+  ) {
+    const gap = sessionWindMin - windSpeed;
+    return {
+      band: /** @type {'light'} */ ("light"),
+      score: Math.max(0, Math.round(32 - gap * 9)),
+    };
+  }
 
   if (personal?.pushMax != null && windSpeed > (personal.comfortMax ?? catalog.max) && windSpeed <= personal.pushMax) {
     const over = windSpeed - (personal.comfortMax ?? catalog.max);
@@ -276,7 +300,15 @@ export function describeWindVsKiteRange(windSpeed, effective) {
     );
   }
 
-  if (personal.funMin != null && personal.funMin > catalog.min + 1 && windSpeed < personal.funMin) {
+  if (
+    (effective.sessionWindMin != null || personal.funMin != null) &&
+    windSpeed < (effective.sessionWindMin ?? personal.funMin ?? 0) - 0.5
+  ) {
+    const floor = effective.sessionWindMin ?? personal.funMin;
+    parts.push(
+      `You've only been happy on this size from about ${formatKt(floor)} kt — at ${formatKt(windSpeed)} kt it will likely feel underpowered (chart starts at ${formatKt(catalog.min)} kt).`
+    );
+  } else if (personal.funMin != null && personal.funMin > catalog.min + 1 && windSpeed < personal.funMin) {
     parts.push(
       `Chart starts at ${formatKt(catalog.min)} kt; you've only enjoyed this kite from about ${formatKt(personal.funMin)} kt.`
     );

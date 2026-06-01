@@ -68,12 +68,18 @@ export function buildPlanKitePick({
   const riderKites = kites ?? [];
   let kiteRec = recommendKite(conditions, riderKites, calibration);
 
-  if (cal.confidence === "high" && cal.preferredSize != null && kiteRec && riderKites.length) {
+  if (cal.preferredSize != null && kiteRec && riderKites.length) {
     const bestByCal = pickKiteNearSize(riderKites, cal.preferredSize, conditions, calibration);
     if (bestByCal) {
       const calDiff = Math.abs(kiteRec.kite.size - cal.preferredSize);
       const histDiff = Math.abs(bestByCal.kite.size - cal.preferredSize);
-      if (histDiff < calDiff - 0.5 || (histDiff <= calDiff && bestByCal.score > kiteRec.score - 5)) {
+      const trustCal =
+        cal.confidence === "high" ||
+        (cal.confidence === "medium" && kiteRec.kite.size < cal.preferredSize - 0.5);
+      if (
+        trustCal &&
+        (histDiff < calDiff - 0.5 || (histDiff <= calDiff && bestByCal.score > kiteRec.score - 8))
+      ) {
         kiteRec = bestByCal;
       }
     }

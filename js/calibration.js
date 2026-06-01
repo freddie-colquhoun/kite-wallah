@@ -126,10 +126,24 @@ export function getCalibrationAtWind(windSpeed, entries) {
   }
 
   const totalWeight = nearby.reduce((s, n) => s + n.weight, 0);
-  const preferredSize =
+  let preferredSize =
     Math.round(
       (nearby.reduce((s, n) => s + n.preferred * n.weight, 0) / totalWeight) * 2
     ) / 2;
+
+  const happyNearby = nearby.filter(({ entry }) => isHappyFeeling(entry.feeling));
+  const minHappyWind = happyNearby.length
+    ? Math.min(...happyNearby.map(({ entry }) => entry.windSpeed))
+    : null;
+
+  if (minHappyWind != null && windSpeed < minHappyWind - 3) {
+    const ktGap = minHappyWind - windSpeed;
+    const sizeBump = Math.min(4, Math.round((ktGap / 2) * 0.5 * 2) / 2);
+    preferredSize = Math.round((preferredSize + sizeBump) * 2) / 2;
+    const maxHappySize = Math.max(...happyNearby.map(({ entry }) => entry.kiteSize));
+    const extrapolated = Math.round((maxHappySize + ktGap * 0.35) * 2) / 2;
+    preferredSize = Math.max(preferredSize, extrapolated);
+  }
 
   const closeMatches = entries.filter((e) => Math.abs(e.windSpeed - windSpeed) <= 3);
   let confidence = "low";
@@ -144,6 +158,8 @@ export function getCalibrationAtWind(windSpeed, entries) {
       .map((e) => `${e.kiteSize}m (${FEELING_LABELS[e.feeling].toLowerCase()})`)
       .join(", ");
     summary = `You've logged ${atWind.length} session${atWind.length > 1 ? "s" : ""} near ${windSpeed} kt: ${names}.`;
+  } else if (minHappyWind != null && windSpeed < minHappyWind - 3) {
+    summary = `Your logs show happy sessions from ~${minHappyWind} kt upward — at ${windSpeed} kt aim closer to ~${preferredSize}m, not the sizes you used in stronger wind.`;
   } else {
     summary = `Based on ${entries.length} past session${entries.length > 1 ? "s" : ""}, your typical size near ${windSpeed} kt is ~${preferredSize}m.`;
   }
@@ -166,6 +182,23 @@ export function getCalibrationAtWind(windSpeed, entries) {
 export function applyCalibrationToScore(baseScore, kiteSize, windSpeed, entries) {
   const cal = getCalibrationAtWind(windSpeed, entries);
   if (cal.preferredSize == null) return { score: baseScore, calibration: cal };
+
+  const minHappyWind = entries
+    .filter((e) => isHappyFeeling(e.feeling))
+    .reduce((m, e) => (m == null ? e.windSpeed : Math.min(m, e.windSpeed)), /** @type {number|null} */ (null));
+
+  if (
+    minHappyWind != null &&
+    windSpeed < minHappyWind - 4 &&
+    kiteSize <= cal.preferredSize - 1
+  ) {
+    const gap = minHappyWind - windSpeed;
+    const penalty = Math.round(Math.min(35, gap * 4));
+    return {
+      score: Math.max(0, Math.round(baseScore - penalty)),
+      calibration: cal,
+    };
+  }
 
   const sizeDiff = Math.abs(kiteSize - cal.preferredSize);
   const weight =
