@@ -496,6 +496,21 @@ h2 {
   margin-bottom: 0.15rem;
 }
 
+.sessions-editor {
+  margin-top: var(--space-md);
+}
+
+.sessions-editor-card {
+  margin-top: var(--space-sm);
+}
+
+.gear-item .gear-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
 .session-item-meta {
   display: block;
   font-size: 0.75rem;
