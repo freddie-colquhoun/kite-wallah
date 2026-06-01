@@ -283,7 +283,7 @@ function renderRelevantSessionNoteHtml(profile, spot, rec, assign) {
     }
   );
   if (!note) return "";
-  return `<p class="plan-session-context hint-tight"><strong>From your log:</strong> ${escapeHtml(note.body)}</p>`;
+  return `<p class="plan-session-context hint-tight">${escapeHtml(note.body)}</p>`;
 }
 
 /** @param {string|null|undefined} guidance */
@@ -890,7 +890,7 @@ function renderBringKitHtml(kit, dayDate) {
                           `<li>
                             <span class="plan-rental-rank">${i + 1}</span>
                             <strong>${escapeHtml(k.name)}</strong>
-                            <span class="plan-rental-meta">${escapeHtml(k.style)} · ${k.score}% fit · ${formatKt(k.windRange.min)}-${formatKt(k.windRange.max)} kt</span>
+                            <span class="plan-rental-meta">${escapeHtml(k.style)} · ${formatKt(k.windRange.min)}-${formatKt(k.windRange.max)} kt</span>
                             <span class="plan-rental-reason">${escapeHtml(k.reason)}</span>
                           </li>`
                       )
@@ -951,10 +951,10 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
                 ${rec.windDirection ? ` ${escapeHtml(rec.windDirection)}` : ""}
                 ${rec.peakGust != null ? ` · gusts to <strong>${formatKt(rec.peakGust)}</strong> kt` : ""}
               </p>
-              <p class="plan-day-hero-kite">${escapeHtml(assign?.kite?.name ?? rec.kiteName)}</p>
+              <p class="plan-day-hero-kite">Fly <strong>${escapeHtml(assign?.kite?.name ?? rec.kiteName)}</strong></p>
+              ${rec.kiteLine ? `<p class="plan-day-hero-kite-why">${escapeHtml(cleanCopy(rec.kiteLine))}</p>` : ""}
               ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="plan-day-hero-kite-note hint-tight">Shared quiver: ${escapeHtml(plan.profileName)} gets this kite (ideal was ${escapeHtml(assign.soloPick.name)}).</p>` : ""}
               ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
-              <p class="plan-day-hero-advice">${escapeHtml(cleanCopy(rec.kiteLine))}</p>
               ${rec.timingNote ? `<p class="plan-day-hero-timing">${escapeHtml(cleanCopy(rec.timingNote))}</p>` : ""}
               ${rec.skipNote ? `<p class="plan-day-hero-skip">${escapeHtml(rec.skipNote)}</p>` : ""}
               ${profile ? renderRelevantSessionNoteHtml(profile, spot, rec, assign) : ""}

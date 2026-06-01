@@ -2,12 +2,15 @@ import {
   FEELING_LABELS,
   isUnderpoweredFeeling,
   isOverpoweredFeeling,
+  isSeriousUnderpoweredFeeling,
 } from "./calibration.js";
 import { sessionStartIso } from "./session-helpers.js";
 import { gustSpread } from "./wind-session-copy.js";
+import { formatKt } from "./format.js";
 
 /** @typedef {import('./calibration.js').CalibrationEntry} CalibrationEntry */
 /** @typedef {import('./spots-storage.js').KiteSpot} KiteSpot */
+/** @typedef {import('./session-rating.js').SessionLevel} SessionLevel */
 
 /**
  * @param {CalibrationEntry} entry
@@ -96,6 +99,15 @@ export function pickComparisonSession(entries, spot, forecast, pickSessionId) {
 }
 
 /**
+ * @param {import('./calibration.js').SessionFeeling|string} feeling
+ */
+function naturalFeelingPhrase(feeling) {
+  if (feeling === "slightly-underpowered") return "a little underpowered";
+  if (feeling === "slightly-overpowered") return "a little overpowered";
+  return (FEELING_LABELS[feeling] || feeling).toLowerCase();
+}
+
+/**
  * Compact comparison for Plan day cards.
  * @param {{ windSpeed: number, gustSpeed?: number|null, windDirection?: string }} forecast
  * @param {CalibrationEntry} entry
@@ -105,41 +117,49 @@ export function formatSessionCompareCard(forecast, entry) {
   const windDelta = Math.round((forecast.windSpeed - e.windSpeed) * 10) / 10;
   const dateLabel = formatSessionDate(sessionStartIso(e));
   const kite = e.kiteName || `${e.kiteSize}m`;
-  const board = e.boardName ? ` · ${e.boardName}` : "";
-  const feeling = (FEELING_LABELS[e.feeling] || e.feeling).toLowerCase();
+  const feeling = naturalFeelingPhrase(e.feeling);
+  const spotBit = e.spotName ? ` at ${e.spotName}` : "";
 
-  let windBit;
+  let todayWind;
   if (Math.abs(windDelta) < 1) {
-    windBit = `Same ballpark wind (${e.windSpeed} kt then vs ~${forecast.windSpeed} kt forecast)`;
+    todayWind = `about the same wind as that day (~${formatKt(forecast.windSpeed)} kt now)`;
   } else if (windDelta > 0) {
-    windBit = `${Math.abs(windDelta)} kt stronger than your ${e.windSpeed} kt session`;
+    todayWind = `a bit more wind today (~${formatKt(forecast.windSpeed)} kt vs ${formatKt(e.windSpeed)} kt then)`;
   } else {
-    windBit = `${Math.abs(windDelta)} kt lighter than your ${e.windSpeed} kt session`;
+    todayWind = `lighter wind today (~${formatKt(forecast.windSpeed)} kt vs ${formatKt(e.windSpeed)} kt then)`;
   }
 
-  let gustBit = "";
+  const parts = [
+    `On ${dateLabel}${spotBit} you rode ${kite} in ${formatKt(e.windSpeed)} kt and felt ${feeling}.`,
+    `Today is ${todayWind}.`,
+  ];
+
   if (e.gustSpeed != null && forecast.gustSpeed != null) {
     const spreadNow = gustSpread(forecast.windSpeed, forecast.gustSpeed);
     const spreadThen = gustSpread(e.windSpeed, e.gustSpeed);
     if (spreadNow > spreadThen + 4) {
-      gustBit = ` Gustier now (to ${forecast.gustSpeed} kt vs ${e.gustSpeed} kt then).`;
+      parts.push(
+        `Gusts are punchier now (to ${formatKt(forecast.gustSpeed)} kt vs ${formatKt(e.gustSpeed)} kt then).`
+      );
     } else if (spreadNow < spreadThen - 4) {
-      gustBit = ` Calmer gusts than that day.`;
+      parts.push("Gusts look calmer than that day.");
     }
   }
 
-  const water = e.waterDescription
-    ? ` Water then: ${e.waterDescription}.`
-    : e.waterType
-      ? ` ${e.waterType} water.`
-      : "";
+  if (e.waterDescription) {
+    parts.push(`Water then: ${e.waterDescription}.`);
+  } else if (e.waterType) {
+    parts.push(`${e.waterType} water that day.`);
+  }
 
-  const notes = e.notes?.trim() ? ` Notes: “${e.notes.trim()}”.` : "";
+  if (e.notes?.trim()) {
+    parts.push(`You noted: “${e.notes.trim()}”.`);
+  }
 
   return {
     id: e.id,
-    title: `${dateLabel} · ${e.spotName || " · "} · ${e.windSpeed} kt · ${kite}${board}`,
-    body: `${windBit}  ·  you rode ${kite} and it felt ${feeling}.${gustBit}${water}${notes}`,
+    title: `${dateLabel} · ${e.spotName || "session"} · ${formatKt(e.windSpeed)} kt · ${kite}`,
+    body: parts.join(" "),
   };
 }
 
@@ -158,6 +178,7 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
   const e = normalizeSessionEntry(entry);
   const windDiff = Math.abs(e.windSpeed - forecast.windSpeed);
   const recSize = opts.recommendedKiteSize;
+  const recName = opts.recommendedKiteName;
   const sizeDiff =
     recSize != null && e.kiteSize > 0 ? Math.abs(e.kiteSize - recSize) : 0;
   const sameSpot = Boolean(
@@ -185,21 +206,69 @@ export function buildRelevantSessionNote(entries, spot, forecast, opts = {}) {
   if (!relevant) return null;
 
   const card = formatSessionCompareCard(forecast, e);
-  let lead = "";
+  const kite = e.kiteName || `${e.kiteSize}m`;
+  const flyToday = recName || (recSize != null ? `~${recSize}m` : "today's pick");
 
-  if (sizeDiff >= 1 && recSize != null) {
-    if (e.kiteSize < recSize - 0.25) {
-      lead = `Today points to more power than your ${e.kiteSize}m log. `;
-    } else if (e.kiteSize > recSize + 0.25) {
-      lead = `Today points to less power than your ${e.kiteSize}m log. `;
+  let opener = "";
+  if (e.feeling === "slightly-underpowered" && windDiff <= 4) {
+    if (recSize != null && Math.abs(e.kiteSize - recSize) <= 0.5) {
+      opener = `You were a little underpowered on ${kite} in similar wind — ${flyToday} may still feel marginal unless you're happy to push it. `;
+    } else {
+      opener = `You were a little underpowered on ${kite} in similar wind before. `;
     }
-  } else if (isUnderpoweredFeeling(e.feeling)) {
-    lead = "You were underpowered in similar wind before — ";
-  } else if (isOverpoweredFeeling(e.feeling)) {
-    lead = "You were overpowered in similar wind before — ";
+  } else if (isSeriousUnderpoweredFeeling(e.feeling) && windDiff <= 5) {
+    opener = `You were underpowered on ${kite} in similar wind before — size up or pick a stronger day if you can. `;
+  } else if (isOverpoweredFeeling(e.feeling) && windDiff <= 5) {
+    opener = `You were overpowered on ${kite} in similar wind before. `;
+  } else if (sizeDiff >= 1 && recSize != null) {
+    if (e.kiteSize < recSize - 0.25) {
+      opener = `Today points to more power than your ${kite} session. `;
+    } else if (e.kiteSize > recSize + 0.25) {
+      opener = `Today points to less power than your ${kite} session. `;
+    }
   }
 
-  return { body: `${lead}${card.body}`.replace(/\s+/g, " ").trim() };
+  return { body: `${opener}${card.body}`.replace(/\s+/g, " ").trim() };
+}
+
+/**
+ * Downgrade a bright GO when a similar log says the same kite size was marginal.
+ * @param {SessionLevel} verdict
+ * @param {CalibrationEntry[]} entries
+ * @param {KiteSpot|null} spot
+ * @param {{ windSpeed: number, gustSpeed?: number|null }} forecast
+ * @param {{ recommendedKiteSize?: number|null }} [opts]
+ * @returns {SessionLevel}
+ */
+export function adjustPlanVerdictForSessionContext(verdict, entries, spot, forecast, opts = {}) {
+  if (verdict !== "go" || !entries?.length) return verdict;
+
+  const entry = pickComparisonSession(entries, spot, forecast);
+  if (!entry) return verdict;
+
+  const e = normalizeSessionEntry(entry);
+  if (Math.abs(e.windSpeed - forecast.windSpeed) > 6) return verdict;
+
+  const recSize = opts.recommendedKiteSize;
+  const sameSize =
+    recSize != null && e.kiteSize > 0 && Math.abs(e.kiteSize - recSize) <= 0.5;
+
+  if (e.feeling === "slightly-underpowered") {
+    if (sameSize || recSize == null) {
+      return forecast.windSpeed <= e.windSpeed + 2 ? "maybe" : "possible";
+    }
+    return "possible";
+  }
+
+  if (e.feeling === "underpowered-rideable" || e.feeling === "too-small") {
+    return sameSize ? "maybe" : "possible";
+  }
+
+  if (e.feeling === "very-underpowered" || e.feeling === "couldnt-ride") {
+    return forecast.windSpeed > e.windSpeed ? "maybe" : "probably-not";
+  }
+
+  return verdict;
 }
 
 /**
@@ -226,7 +295,7 @@ export function formatCrewPastSessionLine(riderName, entry) {
   } else if (e.feeling === "just-right" || e.feeling === "comfortable") {
     howGood = " — kite felt good";
   } else {
-    howGood = ` — ${(FEELING_LABELS[e.feeling] || e.feeling).toLowerCase()}`;
+    howGood = ` — ${naturalFeelingPhrase(e.feeling)}`;
   }
 
   const dir =

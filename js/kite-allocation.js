@@ -180,7 +180,7 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
         a.soloPick && a.soloPick.id !== a.kite.id
           ? ` <span class="kite-allocation-solo">(ideal was ${escapeHtml(a.soloPick.name)})</span>`
           : "";
-      return `<li><strong>${escapeHtml(a.name)}</strong> → ${escapeHtml(title)} (${a.score}% match)${soloNote}</li>`;
+      return `<li><strong>${escapeHtml(a.name)}</strong> → ${escapeHtml(title)}${soloNote}</li>`;
     })
     .join("");
 

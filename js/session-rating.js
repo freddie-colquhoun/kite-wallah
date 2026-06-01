@@ -8,8 +8,8 @@ import { hasSolidPoweredWindow } from "./plan-recommendation.js";
 /** @type {Record<SessionLevel, { label: string, icon: string, short: string }>} */
 export const SESSION_LEVEL_META = {
   go: { label: "GO", icon: "✓", short: "Solid session" },
-  possible: { label: "Possible", icon: "↑", short: "Worth a look" },
-  maybe: { label: "Maybe", icon: "~", short: "Borderline" },
+  possible: { label: "Possible", icon: "↑", short: "Could work if you're keen" },
+  maybe: { label: "If you're keen", icon: "~", short: "Marginal from your log" },
   "probably-not": { label: "Probably not", icon: "!", short: "Weak odds" },
   no: { label: "Skip", icon: "✕", short: "Don't bother" },
 };

@@ -8,6 +8,7 @@ import { formatKt } from "./format.js";
 import { gustSpread } from "./wind-session-copy.js";
 import { buildPlanHourlyKites } from "./plan-hourly-kites.js";
 import { rankRentalKitesForWind } from "./rental-kite-ranker.js";
+import { describeQuiverGapAtSize } from "./kite-fit-copy.js";
 
 /** @typedef {import('./planner.js').HourAssessment} HourAssessment */
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
@@ -236,7 +237,7 @@ export async function buildPlanBringKit({
             ? `No kites in quiver — need ~${size}m for the main ride window (${formatKt(ref.wind)} kt)`
             : !bestAtSize
               ? `No ${size}m in packed bag for the main ride window (${formatKt(ref.wind)} kt)`
-              : `Your ${size}m options score low (~${bestAtSize.score}%) in the main ride window — consider renting`,
+              : describeQuiverGapAtSize(size, bestAtSize.score, bestAtSize.inRange),
       ranked,
     });
   }

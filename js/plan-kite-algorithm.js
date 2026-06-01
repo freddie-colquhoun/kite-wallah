@@ -16,6 +16,7 @@ import { formatKt } from "./format.js";
 import { gustSpread } from "./wind-session-copy.js";
 import { cleanCopy } from "./copy-format.js";
 import { ratePlanDay } from "./session-rating.js";
+import { adjustPlanVerdictForSessionContext } from "./session-comparison.js";
 import { describeWindVsKiteRange } from "./kite-personal-range.js";
 
 /** @typedef {import('./plan-recommendation.js').RideableWindSummary} RideableWindSummary */
@@ -50,6 +51,7 @@ export function buildPlanKitePick({
   waterType,
   limits,
   scorable,
+  spot = null,
 }) {
   const avgWind = rideable.avgWind;
   const peakGust = rideable.peakGust;
@@ -85,7 +87,14 @@ export function buildPlanKitePick({
     }
   }
 
-  const dayVerdict = ratePlanDay(scorable, limits, rideable);
+  let dayVerdict = ratePlanDay(scorable, limits, rideable);
+  dayVerdict = adjustPlanVerdictForSessionContext(
+    dayVerdict,
+    calibration,
+    spot,
+    { windSpeed: avgWind, gustSpeed: peakGust },
+    { recommendedKiteSize: kiteRec?.kite?.size ?? null }
+  );
   const kiteLine = buildPlanKiteAdvice({
     kiteRec,
     rideable,

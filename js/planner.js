@@ -422,6 +422,7 @@ function buildPlanDayGuide(profile, riderKites, spot, spotNotes, scorable, ridea
     waterType: spot.waterType,
     limits,
     scorable,
+    spot,
   });
 
   const spread = gustSpread(effectiveRideable.avgWind, effectiveRideable.peakGust);

@@ -24,6 +24,7 @@ import { initQuiverModule, refreshQuiverPanel } from "./quiver-ui.js";
 import { getAbilityOptionsHtml, renderAbilityGuide, getAbilityLabel } from "./ability-levels.js";
 import { initSessionsModule, renderSessionsPanel } from "./sessions-ui.js";
 import { FEELING_LABELS, getCalibrationAtWind } from "./calibration.js";
+import { describeKiteFitShort } from "./kite-fit-copy.js";
 import { answerQuestion, formatAssistantReply, explainRecommendation } from "./assistant.js";
 import { renderDataSourcesHtml } from "./data-sources.js";
 import {
@@ -337,8 +338,11 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
     const altHtml = kiteRec.alternatives.length
       ? `<details class="result-more action-panel"><summary class="action-panel-summary">Other kites in quiver</summary><ul class="notes-list">${kiteRec.alternatives
           .map(
-            ({ kite, score, range }) =>
-              `<li>${escapeHtml(kite.name)} ${score}% · ${formatKt(range.min)}-${formatKt(range.max)} kt</li>`
+            ({ kite, score, range }) => {
+              const fit = describeKiteFitShort(score);
+              const fitBit = fit ? ` — ${escapeHtml(fit)}` : "";
+              return `<li>${escapeHtml(kite.name)} · ${formatKt(range.min)}-${formatKt(range.max)} kt${fitBit}</li>`;
+            }
           )
           .join("")}</ul></details>`
       : "";

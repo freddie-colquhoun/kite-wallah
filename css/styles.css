@@ -2938,10 +2938,17 @@ textarea {
 }
 
 .plan-day-hero-kite {
-  margin: 0 0 0.35rem;
-  font-size: 0.9375rem;
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1.125rem;
   font-weight: 600;
   color: var(--text);
+}
+
+.plan-day-hero-kite-why {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
 }
 
 .plan-day-hero-advice {

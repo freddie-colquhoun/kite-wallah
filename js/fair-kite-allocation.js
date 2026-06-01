@@ -23,6 +23,7 @@ import {
 import { describeWindVsKiteRange } from "./kite-personal-range.js";
 import { escapeHtml } from "./dom-safe.js";
 import { formatKt } from "./format.js";
+import { describeKiteFitShort } from "./kite-fit-copy.js";
 
 /** @typedef {import('./kite-allocation.js').RiderAllocInput} RiderAllocInput */
 /** @typedef {import('./kite-allocation.js').KiteAssignment} KiteAssignment */
@@ -396,7 +397,7 @@ function explainPoorRemainingKiteFit(rider, pick, minAdequate, idealSize) {
 
   if (!parts.length) {
     parts.push(
-      `At ${formatKt(wind)} kt this ${kite.size}m only scores ${pick.need}% need-fit for you.`
+      `At ${formatKt(wind)} kt this ${kite.size}m ${describeKiteFitShort(pick.need) ?? "is a weak match for you"}.`
     );
   }
 
@@ -442,10 +443,13 @@ export function buildRiderKiteDisplayHtml(
 
   if (assign && !unassigned) {
     const assignedName = assign.kite.name;
-    const fit = `<span class="plan-rider-fit">${assign.score}% need-fit</span>`;
+    const fitNote = describeKiteFitShort(assign.score);
+    const fit = fitNote
+      ? `<span class="plan-rider-fit">${escapeHtml(fitNote)}</span>`
+      : "";
     const compromised = assign.score < MIN_SUITABLE_SCORE;
     const flySub = compromised
-      ? `<p class="plan-rider-kite-fly-sub hint-tight">Best safe kite left in the bag — not a perfect chart match.</p>`
+      ? `<p class="plan-rider-kite-fly-sub hint-tight">Best safe kite left in the bag — ${escapeHtml(fitNote ?? "not an ideal match for this wind")}.</p>`
       : "";
 
     let idealHtml = "";
@@ -488,9 +492,11 @@ export function buildRiderKiteDisplayHtml(
     }
     if (unassigned.poorFitKite) {
       const name = unassigned.poorFitKite.name || `${unassigned.poorFitKite.size}m`;
-      const score =
-        unassigned.poorFitScore != null ? ` (${unassigned.poorFitScore}% need-fit)` : "";
-      reasons.push(`Only ${escapeHtml(name)} left${score} — not safe at this wind for you.`);
+      const fitHint =
+        unassigned.poorFitScore != null
+          ? ` (${describeKiteFitShort(unassigned.poorFitScore) ?? "weak match"})`
+          : "";
+      reasons.push(`Only ${escapeHtml(name)} left${fitHint} — not safe at this wind for you.`);
     }
     if (!reasons.length) reasons.push("No kite left in the bag that works for you.");
 
