@@ -47,19 +47,9 @@ import { isFortunateSonPlaying, playFortunateSon } from "./fortunate-son.js";
 import { sessionLevelLabel } from "./session-rating.js";
 import { buildRelevantSessionNote } from "./session-comparison.js";
 import { answerPlanQuestion, formatAssistantReply } from "./plan-assistant.js";
-import { getOpenAiApiKey, setOpenAiApiKey } from "./ai-client.js";
-import {
-  getAiLayerMode,
-  setAiLayerMode,
-  isAiLayerEnabled,
-  isOpenAiKeyFromConfig,
-} from "./ai-settings.js";
-import { migrateOpenAiKeyFromLegacySettings } from "./user-secrets.js";
-import {
-  enrichPlanResultsWithAiV2,
-  renderAiV2SlotHtml,
-  renderAiV2LimitsHintHtml,
-} from "./ai-enrich.js";
+import { getOpenAiApiKey } from "./ai-client.js";
+import { getAiLayerMode } from "./ai-settings.js";
+import { enrichPlanResultsWithAiV2, renderAiV2SlotHtml } from "./ai-enrich.js";
 import { escapeHtml } from "./dom-safe.js";
 import { markWindFetched, markTidesFetched } from "./live-status.js";
 
@@ -1392,68 +1382,31 @@ export function refreshPlanUi(state) {
 }
 
 function refreshOpenAiSettingsUi() {
-  migrateOpenAiKeyFromLegacySettings();
-  const keyEl = document.getElementById("plan-openai-key");
-  const modeEl = document.getElementById("ai-layer-mode");
   const statusEl = document.getElementById("openai-setup-status");
-  const fromConfig = isOpenAiKeyFromConfig();
-
-  if (keyEl) {
-    keyEl.value = fromConfig ? "•••••••• (from config.js)" : getOpenAiApiKey();
-    keyEl.readOnly = fromConfig;
-    keyEl.disabled = fromConfig;
-  }
-  if (modeEl) modeEl.value = getAiLayerMode();
-
   if (!statusEl) return;
-  if (fromConfig) {
+
+  if (!getOpenAiApiKey()) {
     statusEl.textContent =
-      "Key loaded from config.js on this deploy — no need to type it in Options.";
-  } else if (!getOpenAiApiKey()) {
+      "AI summaries off — add your OpenAI key to js/secrets.js and redeploy.";
+    return;
+  }
+
+  const mode = getAiLayerMode();
+  if (mode === "off") {
     statusEl.textContent =
-      "Paste key once — saved on this device only (not shared with crew sync). Pennies per Plan run.";
-  } else if (!isAiLayerEnabled()) {
-    statusEl.textContent = "Key saved on this device. Set AI layer to Explain or Review.";
+      "OpenAI key is set; AI layer is off in secrets.js (AI_LAYER_DEFAULT).";
   } else {
-    statusEl.textContent = "OpenAI ready — key remembered on this browser.";
+    statusEl.textContent = `OpenAI ready (${mode}) — key built into this site, gpt-4o-mini.`;
   }
 }
 
 function wireOpenAiSettingsOnce() {
-  const keyEl = document.getElementById("plan-openai-key");
-  const modeEl = document.getElementById("ai-layer-mode");
-  const limitsEl = document.getElementById("ai-v2-limits");
-
-  if (limitsEl && !limitsEl.dataset.loaded) {
-    limitsEl.innerHTML = renderAiV2LimitsHintHtml();
-    limitsEl.dataset.loaded = "1";
-  }
-
-  if (!keyEl || keyEl.dataset.openaiWired === "1") {
+  const statusEl = document.getElementById("openai-setup-status");
+  if (!statusEl || statusEl.dataset.openaiWired === "1") {
     refreshOpenAiSettingsUi();
     return;
   }
-  keyEl.dataset.openaiWired = "1";
-
-  const persistKey = () => {
-    if (!isOpenAiKeyFromConfig()) setOpenAiApiKey(keyEl.value);
-    if (keyEl.value.trim() && getAiLayerMode() === "off" && modeEl) {
-      setAiLayerMode("explain");
-      modeEl.value = "explain";
-    }
-    refreshOpenAiSettingsUi();
-  };
-
-  keyEl.addEventListener("input", persistKey);
-  keyEl.addEventListener("change", persistKey);
-  keyEl.addEventListener("blur", persistKey);
-  if (modeEl) {
-    modeEl.addEventListener("change", () => {
-      setAiLayerMode(/** @type {import('./ai-settings.js').AiLayerMode} */ (modeEl.value));
-      refreshOpenAiSettingsUi();
-    });
-  }
-
+  statusEl.dataset.openaiWired = "1";
   window.addEventListener("crew-data-updated", refreshOpenAiSettingsUi);
   refreshOpenAiSettingsUi();
 }

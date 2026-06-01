@@ -9,11 +9,4 @@ export const CLOUD_CONFIG = {
   supabaseAnonKey: "YOUR_ANON_PUBLIC_KEY",
 };
 
-/**
- * Optional — if set, the app never asks for a key in Options (key is in your deployed JS).
- * Only use on a private deploy; anyone who can open the site can extract it from DevTools.
- */
-export const OPENAI_API_KEY = "";
-
-/** When OPENAI_API_KEY is set: "off" | "explain" | "review" */
-export const AI_LAYER_DEFAULT = "explain";
+/** Copy secrets.example.js → secrets.js and set OPENAI_API_KEY there. */

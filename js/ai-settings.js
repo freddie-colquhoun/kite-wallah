@@ -28,8 +28,8 @@ export function getAiLayerMode() {
 }
 
 /** @param {AiLayerMode} mode */
-export function setAiLayerMode(mode) {
-  setStoredAiLayerMode(mode === "explain" || mode === "review" ? mode : "off");
+export function setAiLayerMode(_mode) {
+  setStoredAiLayerMode(_mode);
 }
 
 /** @returns {boolean} */
