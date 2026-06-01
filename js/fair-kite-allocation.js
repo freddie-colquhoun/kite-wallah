@@ -3,7 +3,7 @@
  *
  * Flow:
  * 1. Score each rider × each kite (scoreKiteForConditions — same as recommendKite / Ideal).
- * 2. Sort pick order: fewest workable kites → highest session min-size → weight tiebreak.
+ * 2. Sort pick order: weight (kg) descending — heaviest picks first. Riders with only one safe kite in the bag go first.
  * 3. Each turn: largest SAFE unused kite; first picker also meets power target − 0.5 m.
  * 4. Rent only when no safe kite remains.
  */
@@ -248,7 +248,7 @@ function pickKiteForSharedQuiver(r, usedIds, isFirstPicker) {
 }
 
 /**
- * Pick order: fewest workable kites → highest session min-size need → weight.
+ * Pick order: heaviest first. Only riders with exactly one safe kite skip the queue (must claim it).
  * @param {Array<RiderAllocInput & ReturnType<typeof scoreRiderAgainstAllKites>>} riders
  */
 function sortRidersForAllocation(riders) {
@@ -257,16 +257,16 @@ function sortRidersForAllocation(riders) {
     viableCount: countViableKitesForRider(r),
   }));
 
-  return enriched.sort((a, b) => {
-    if (a.viableCount !== b.viableCount) return a.viableCount - b.viableCount;
-    const minA = a.minAdequate ?? 0;
-    const minB = b.minAdequate ?? 0;
-    if (minB !== minA) return minB - minA;
+  const byWeight = (a, b) => {
     const weightA = Number(a.conditions.riderWeight) || 75;
     const weightB = Number(b.conditions.riderWeight) || 75;
     if (weightB !== weightA) return weightB - weightA;
     return a.name.localeCompare(b.name);
-  });
+  };
+
+  const mustPickFirst = enriched.filter((r) => r.viableCount === 1).sort(byWeight);
+  const rest = enriched.filter((r) => r.viableCount !== 1).sort(byWeight);
+  return [...mustPickFirst, ...rest];
 }
 
 /** @param {KiteAssignment[]} assignments */
@@ -504,7 +504,7 @@ export function buildAllocationConflictGuidance(riders, alloc, allKites) {
       : "this wind";
 
   const lines = [
-    `Not enough safe kites for everyone at ${windLabel}. Riders with fewer workable sizes in the bag pick first; weight breaks ties.`,
+    `Not enough safe kites for everyone at ${windLabel}. Heaviest rider picks first from the bag; rent only if nothing safe remains.`,
   ];
 
   if (alloc.assignments.length) {

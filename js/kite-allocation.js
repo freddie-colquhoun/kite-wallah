@@ -195,7 +195,7 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
 
   return `<div class="kite-allocation-banner card card-slim">
     <h3 class="kite-allocation-title">Who flies which kite</h3>
-    <p class="hint hint-tight">One kite per person — riders with fewer workable sizes pick first; weight breaks ties.</p>
+    <p class="hint hint-tight">One kite per person — heaviest rider picks from the bag first.</p>
     ${heading}
     ${conflict}
     ${rows ? `<ul class="kite-allocation-list">${rows}</ul>` : ""}

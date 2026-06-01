@@ -258,7 +258,7 @@ function getPlanCrewAllocationHint() {
   if (travel.enabled && travel.mode === "packed") {
     return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
-  return "Shared quiver: each rider’s Ideal is their personal best kite at this wind; Fly this is who rigs what after splitting the bag (fewest workable sizes pick first).";
+  return "Shared quiver: Ideal = personal best at this wind; Fly this = who rigs what (heaviest picks first from the bag).";
 }
 
 /**
