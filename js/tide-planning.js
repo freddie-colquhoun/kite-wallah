@@ -30,6 +30,72 @@ export function getTideExtremaFromHourly(hourly) {
 }
 
 /**
+ * @param {string} date
+ * @param {TidePrediction[]} extrema
+ * @returns {TidePrediction[]}
+ */
+export function getDayTideExtrema(date, extrema) {
+  return extrema
+    .filter((e) => dateKey(e.time) === date)
+    .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+}
+
+/**
+ * @param {string} date
+ * @param {TidePrediction[]} extrema
+ */
+export function formatDayTideTimes(date, extrema) {
+  const day = getDayTideExtrema(date, extrema);
+  if (!day.length) return null;
+
+  return day
+    .map((e) => {
+      const t = new Date(e.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const kind = e.type === "H" ? "High" : "Low";
+      return `${kind} ${t} (${formatNum(e.height, 1)} m)`;
+    })
+    .join(" · ");
+}
+
+/**
+ * Readable tide panel with mini height chart.
+ * @param {TidePrediction[]} dayExtrema sorted for one day
+ */
+export function renderDayTideChartHtml(dayExtrema) {
+  if (!dayExtrema.length) return "";
+
+  const heights = dayExtrema.map((e) => e.height);
+  const minH = Math.min(...heights);
+  const maxH = Math.max(...heights);
+  const range = maxH - minH || 0.1;
+
+  const bars = dayExtrema
+    .map((e) => {
+      const t = new Date(e.time).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const isHigh = e.type === "H";
+      const pct = Math.round(((e.height - minH) / range) * 100);
+      const barRem = (0.6 + (pct / 100) * 2.8).toFixed(2);
+      return `<div class="plan-tide-event plan-tide-event--${isHigh ? "high" : "low"}">
+        <div class="plan-tide-event-bar" style="height:${barRem}rem" aria-hidden="true"></div>
+        <span class="plan-tide-event-kind">${isHigh ? "High" : "Low"}</span>
+        <span class="plan-tide-event-time">${t}</span>
+        <span class="plan-tide-event-height">${formatNum(e.height, 1)} m</span>
+      </div>`;
+    })
+    .join("");
+
+  return `<div class="plan-tide-chart" role="img" aria-label="Tide high and low times for this day">
+    <div class="plan-tide-chart-bars">${bars}</div>
+  </div>`;
+}
+
+/**
  * @param {string} isoTime
  * @param {TidePrediction[]} hourly
  */
@@ -41,8 +107,10 @@ export function getTidePhaseAtHour(isoTime, hourly) {
   const next = hourly[Math.min(idx + 1, hourly.length - 1)];
   const rising = next.height > cur.height;
 
-  const nearHigh = idx > 0 && cur.height >= hourly[idx - 1].height && cur.height >= next.height;
-  const nearLow = idx > 0 && cur.height <= hourly[idx - 1].height && cur.height <= next.height;
+  const nearHigh =
+    idx > 0 && cur.height >= hourly[idx - 1].height && cur.height >= next.height;
+  const nearLow =
+    idx > 0 && cur.height <= hourly[idx - 1].height && cur.height <= next.height;
 
   if (nearHigh) return { phase: "high", label: "Near high" };
   if (nearLow) return { phase: "low", label: "Near low" };
@@ -83,23 +151,6 @@ export function assessTideAccess(isoTime, rule, windowHours, extrema) {
     accessAllowed: false,
     accessNote: `Outside ${windowHours}h window around ${label} tide`,
   };
-}
-
-/**
- * @param {string} date
- * @param {TidePrediction[]} extrema
- */
-export function formatDayTideTimes(date, extrema) {
-  const day = extrema.filter((e) => dateKey(e.time) === date);
-  if (!day.length) return null;
-
-  return day
-    .map((e) => {
-      const t = new Date(e.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const kind = e.type === "H" ? "High" : "Low";
-      return `${kind} ${t} (${formatNum(e.height, 1)} m)`;
-    })
-    .join(" · ");
 }
 
 /**

@@ -282,6 +282,29 @@ textarea {
   gap: var(--space-sm) var(--space-md);
 }
 
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.logo-icon {
+  display: flex;
+  gap: 0.1rem;
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.logo-emoji {
+  display: inline-block;
+}
+
+.logo h1 {
+  margin: 0;
+}
+
 h1 {
   margin: 0;
   font-size: 1.25rem;
@@ -2934,9 +2957,97 @@ textarea {
   }
 }
 
+.plan-conditions-panel {
+  padding: var(--space-md) var(--space-xl) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.plan-section-label {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.plan-wind-panel .plan-timeline-wrap {
+  margin: 0;
+}
+
 .plan-day-card .plan-timeline-wrap {
-  padding: var(--space-md) var(--space-lg) 0;
+  padding: 0;
   overflow: visible;
+}
+
+.plan-tide-panel {
+  margin: 0;
+}
+
+.plan-tide-chart {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-muted);
+  border-radius: var(--radius-sm);
+}
+
+.plan-tide-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: var(--space-md);
+  min-height: 5.5rem;
+  padding-top: var(--space-xs);
+}
+
+.plan-tide-event {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  flex: 1 1 0;
+  min-width: 3.5rem;
+  max-width: 5rem;
+  min-height: 5.5rem;
+}
+
+.plan-tide-event-bar {
+  width: 100%;
+  max-width: 2.25rem;
+  min-height: 0.75rem;
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(180deg, #5ac8fa 0%, #007aff 100%);
+}
+
+.plan-tide-event--low .plan-tide-event-bar {
+  background: linear-gradient(180deg, #a8d4ff 0%, #5ac8fa 100%);
+}
+
+.plan-tide-event-kind {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.plan-tide-event--high .plan-tide-event-kind {
+  color: #0071e3;
+}
+
+.plan-tide-event-time {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.plan-tide-event-height {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
 }
 
 .plan-day-card .plan-day-hero {

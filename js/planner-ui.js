@@ -10,6 +10,7 @@ import {
 } from "./planner.js";
 import { loadCatalog } from "./kite-lookup.js";
 import { formatHourKiteTooltipLine } from "./plan-hourly-kites.js";
+import { renderDayTideChartHtml } from "./tide-planning.js";
 import {
   buildSharedDayTips,
   mergeCrewBringKit,
@@ -718,7 +719,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
       const lead = entries[0].day;
       const rec = lead.recommendation;
       const crewVerdicts = entries.map(
-        (e) => e.day.recommendation?.verdict ?? e.day.dayVerdict
+        (e) => e.day.recommendation?.verdict ?? "no"
       );
       const crewVerdict = pickCrewDayVerdict(crewVerdicts);
       const dayAlloc = dayAllocations.get(date);
@@ -746,9 +747,14 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         entries.map((e) => e.day.bringKit),
         dayAlloc ?? null
       );
-      const bringHtml = bringKit ? renderBringKitHtml(bringKit, date) : "";
+      const bringHtml =
+        shouldShowBringKit(crewVerdict) && bringKit
+          ? renderBringKitHtml(bringKit, date)
+          : "";
 
-      const heroHtml = rec
+      const showPoweredHero = rec && crewVerdict === "go";
+
+      const heroHtml = showPoweredHero
         ? `<div class="plan-day-hero plan-day-hero--${crewVerdict} plan-day-hero--crew">
             <div class="plan-day-hero-body">
               ${title.prefix ? `<p class="plan-day-hero-prefix">${escapeHtml(title.prefix)}</p>` : ""}
@@ -793,7 +799,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         )
         .map(({ plan, day }) => {
           const profile = getProfile(state, plan.profileId);
-          const verdict = day.recommendation?.verdict ?? day.dayVerdict;
+          const verdict = day.recommendation?.verdict ?? "no";
           const assign = dayAlloc?.assignments.find((a) => a.profileId === plan.profileId);
           const unassigned = dayAlloc?.unassigned.find((u) => u.profileId === plan.profileId);
           const recR = day.recommendation;
@@ -824,15 +830,11 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         })
         .join("");
 
-      const timeline = renderDayTimeline(lead, showNight);
-      const tidesOnce = lead.tideTimes
-        ? `<p class="plan-day-tides">${escapeHtml(lead.tideTimes)}</p>`
-        : "";
+      const conditionsPanel = renderDayConditionsPanel(lead, showNight);
 
       return `<article class="plan-day-card plan-day-card--crew plan-day-card--${crewVerdict}" data-day-date="${escapeHtml(date)}">
         ${heroHtml}
-        ${timeline}
-        ${tidesOnce}
+        ${conditionsPanel}
         ${tipsHtml}
         <section class="plan-crew-riders" aria-label="Kite assignment per rider">
           <div class="plan-crew-riders-head">
@@ -935,7 +937,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
       const dayAlloc = dayAllocations.get(day.date);
       const assign = dayAlloc?.assignments.find((a) => a.profileId === plan.profileId);
       const unassigned = dayAlloc?.unassigned.find((u) => u.profileId === plan.profileId);
-      const timeline = renderDayTimeline(day, showNight);
+      const conditionsPanel = renderDayConditionsPanel(day, showNight);
 
       const title = day.planDayTitle ?? {
         prefix: null,
@@ -982,19 +984,17 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
             </div>
           </div>`;
 
-      const tidesOnce = day.tideTimes
-        ? `<p class="plan-day-tides">${escapeHtml(day.tideTimes)}</p>`
-        : "";
-
       const tipsHtml = renderPlanDayExpectationHtml(day.tips ?? []);
 
-      const bringHtml = day.bringKit ? renderBringKitHtml(day.bringKit, day.date) : "";
+      const bringHtml =
+        shouldShowBringKit(verdict) && day.bringKit
+          ? renderBringKitHtml(day.bringKit, day.date)
+          : "";
 
       return `
         <article class="plan-day-card plan-day-card--${verdict}" data-day-date="${escapeHtml(day.date)}">
           ${heroHtml}
-          ${timeline}
-          ${tidesOnce}
+          ${conditionsPanel}
           ${tipsHtml}
           ${bringHtml}
         </article>`;
@@ -1045,6 +1045,30 @@ function dayVerdictLabel(v) {
   return sessionLevelLabel(/** @type {import('./session-rating.js').SessionLevel} */ (v));
 }
 
+/** @param {import('./session-rating.js').SessionLevel} verdict */
+function shouldShowBringKit(verdict) {
+  return verdict === "go";
+}
+
+/** @param {import('./planner.js').DayPlan} day @param {boolean} showNight */
+function renderDayTidePanel(day) {
+  const extrema = day.tideDayExtrema ?? [];
+  if (!extrema.length) return "";
+
+  return `<section class="plan-tide-panel" aria-label="Tide times">
+    <h5 class="plan-section-label">Tide</h5>
+    ${renderDayTideChartHtml(extrema)}
+  </section>`;
+}
+
+/** @param {import('./planner.js').DayPlan} day @param {boolean} showNight */
+function renderDayConditionsPanel(day, showNight) {
+  const wind = renderDayWindTimeline(day, showNight);
+  const tide = renderDayTidePanel(day);
+  if (!wind && !tide) return "";
+  return `<div class="plan-conditions-panel">${wind}${tide}</div>`;
+}
+
 /** @param {{ verdict: string }} b */
 function blockLabel(b) {
   if (b.verdict === "tide-blocked") return "Outside tide window";
@@ -1055,7 +1079,7 @@ function blockLabel(b) {
 }
 
 /** @param {import('./planner.js').DayPlan} day @param {boolean} showNight */
-function renderDayTimeline(day, showNight) {
+function renderDayWindTimeline(day, showNight) {
   const visible = day.hours.filter(
     (h) => h.inAvailability && (showNight || !h.isDark)
   );
@@ -1069,15 +1093,17 @@ function renderDayTimeline(day, showNight) {
     )
     .join("");
 
-  return `<div class="plan-timeline-wrap">
-    <p class="plan-timeline-caption">Hour of day</p>
-    <div class="plan-timeline-scroll">
-      <div class="plan-timeline-strip">
-        <div class="plan-timeline">${cells}</div>
-        <div class="plan-timeline-axis" aria-hidden="true">${axis}</div>
+  return `<section class="plan-wind-panel" aria-label="Hourly wind">
+    <h5 class="plan-section-label">Wind</h5>
+    <div class="plan-timeline-wrap">
+      <div class="plan-timeline-scroll">
+        <div class="plan-timeline-strip">
+          <div class="plan-timeline">${cells}</div>
+          <div class="plan-timeline-axis" aria-hidden="true">${axis}</div>
+        </div>
       </div>
     </div>
-  </div>`;
+  </section>`;
 }
 
 /** @type {HTMLElement|null} */

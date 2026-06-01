@@ -20,19 +20,21 @@ import { formatKt } from "./format.js";
 const VERDICT_RANK = { go: 5, possible: 4, maybe: 3, "probably-not": 2, no: 1 };
 
 /**
+ * Crew day label uses the most conservative rider verdict (weakest link).
  * @param {import('./session-rating.js').SessionLevel[]} verdicts
  */
 export function pickCrewDayVerdict(verdicts) {
-  let best = "no";
-  let bestRank = 0;
+  if (!verdicts.length) return "no";
+  let worst = verdicts[0];
+  let worstRank = VERDICT_RANK[worst] ?? 0;
   for (const v of verdicts) {
     const r = VERDICT_RANK[v] ?? 0;
-    if (r > bestRank) {
-      bestRank = r;
-      best = v;
+    if (r < worstRank) {
+      worstRank = r;
+      worst = v;
     }
   }
-  return /** @type {SessionLevel} */ (best);
+  return /** @type {SessionLevel} */ (worst);
 }
 
 /**

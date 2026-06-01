@@ -81,6 +81,7 @@ import { cleanCopy } from "./copy-format.js";
  * @property {import('./plan-recommendation.js').PlanDayRecommendation|null} recommendation
  * @property {{ title: string, text: string }[]} tips
  * @property {string|null} tideTimes
+ * @property {import('./tides.js').TidePrediction[]} [tideDayExtrema]
  * @property {TimeBlock|null} bestWindow
  * @property {TimeBlock[]} blocks
  * @property {HourAssessment[]} hours
@@ -535,6 +536,7 @@ export function planRiderSessions({
     const blocks = groupIntoBlocks(visible);
     const rideable = computeRideableWindWindow(scorable, skillLimits);
     const best = findBestWindow(scorable, skillLimits);
+    const tideDayExtrema = tideExtrema.filter((e) => e.time.slice(0, 10) === date);
     const tideTimes = formatDayTideTimes(date, tideExtrema);
     const { recommendation, tips } = buildPlanDayGuide(
       profile,
@@ -556,6 +558,7 @@ export function planRiderSessions({
       recommendation,
       tips,
       tideTimes,
+      tideDayExtrema,
       bestWindow: best,
       blocks,
       hours: dayHours,
