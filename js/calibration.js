@@ -38,7 +38,7 @@ const FEELING_LABELS = {
  * @param {CalibrationEntry} entry
  * @returns {number}
  */
-function inferPreferredSize(entry) {
+export function inferPreferredSize(entry) {
   switch (entry.feeling) {
     case "just-right":
     case "comfortable":

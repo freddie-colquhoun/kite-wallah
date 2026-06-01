@@ -1,5 +1,6 @@
 /**
- * Shared quiver (kites + boards). Riders link via kiteIds / boardIds.
+ * Shared crew quiver — all kites/boards are candidates for every rider's recommendations.
+ * profile.kiteIds / boardIds track gear used in that rider's logged sessions only.
  */
 
 import { createId } from "./ids.js";

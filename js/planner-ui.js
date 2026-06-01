@@ -2,11 +2,20 @@ import { fetchWindForecast, fetchSunSchedule } from "./weather.js";
 import { fetchHourlyTideForecast } from "./tides.js";
 import {
   planRiderSessions,
+  enrichRiderPlan,
   getWeekendDates,
   getTomorrowDate,
   getUpcomingDates,
   formatDateLabel,
 } from "./planner.js";
+import { loadCatalog } from "./kite-lookup.js";
+import { formatHourKiteTooltipLine } from "./plan-hourly-kites.js";
+import {
+  buildSharedDayTips,
+  mergeCrewBringKit,
+  getRiderDayEntries,
+  pickCrewDayVerdict,
+} from "./plan-day-aggregate.js";
 import { cleanCopy } from "./copy-format.js";
 import {
   initPlanCalendar,
@@ -109,10 +118,14 @@ function getHourTooltipRows(h) {
 
   if (h.isDark) rows.push(["Daylight", "After dark"]);
 
-  rows.push([
-    "Kite",
-    h.kiteName || (h.rideable ? "Add kites on Quiver" : "—"),
-  ]);
+  if (h.kitePick) {
+    rows.push(["Kite this hour", formatHourKiteTooltipLine(h.kitePick)]);
+  } else {
+    rows.push([
+      "Kite",
+      h.kiteName || (h.rideable ? "Add kites on Quiver" : "—"),
+    ]);
+  }
   rows.push(["Rideable", h.rideable ? "Yes" : "No"]);
 
   return rows;
@@ -149,12 +162,18 @@ function renderHourCell(h) {
       ? `<span class="plan-hour-gust">${formatKt(h.gustSpeed)}</span>`
       : `<span class="plan-hour-gust plan-hour-gust--empty">-</span>`;
 
+  const pick = h.kitePick;
+  const kiteHtml = pick
+    ? `<span class="plan-hour-kite plan-hour-kite--${pick.fit}">${escapeHtml(pick.shortLabel)}</span>`
+    : "";
+
   return `<div class="plan-hour ${hourCellClasses(h)}" style="${windHourStyle(h.windSpeed)}" tabindex="0" aria-describedby="plan-hour-float-tip" aria-label="${escapeHtml(aria)}">
     ${windDialHtml(h.windDirection)}
     <div class="plan-hour-speeds">
       <span class="plan-hour-kt">${formatKt(h.windSpeed)}</span>
       ${gustHtml}
     </div>
+    ${kiteHtml}
     <div class="plan-hour-tip-src" hidden>${buildHourTooltipHtml(h)}</div>
   </div>`;
 }
@@ -248,34 +267,46 @@ export function initPlannerModule(state) {
   refreshPlanUi(state);
 }
 
-function recomputePlansFromCache() {
+async function recomputePlansFromCache() {
   const ctx = lastPlanContext;
   if (!ctx) return;
   const showNight = document.getElementById("plan-show-night")?.checked ?? false;
-  const plans = ctx.profileIds
-    .map((id) => {
-      const profile = getProfile(ctx.state, id);
-      if (!profile) return null;
-      migrateProfilesToSharedQuiver(ctx.state);
-      return planRiderSessions({
-        profile,
-        spot: ctx.spot,
-        forecast: ctx.forecast,
-        tideHourly: ctx.tideHourly,
-        availability: ctx.availability,
-        spotNotes: ctx.spotNotes,
-        showNight,
-        sunByDate: ctx.sunByDate,
-        kites: getRiderKites(ctx.state, profile),
-      });
-    })
-    .filter(Boolean);
+  await loadCatalog();
+
+  const plans = (
+    await Promise.all(
+      ctx.profileIds.map(async (id) => {
+        const profile = getProfile(ctx.state, id);
+        if (!profile) return null;
+        migrateProfilesToSharedQuiver(ctx.state);
+        const plan = planRiderSessions({
+          profile,
+          spot: ctx.spot,
+          forecast: ctx.forecast,
+          tideHourly: ctx.tideHourly,
+          availability: ctx.availability,
+          spotNotes: ctx.spotNotes,
+          showNight,
+          sunByDate: ctx.sunByDate,
+          kites: getRiderKites(ctx.state, profile),
+        });
+        return enrichRiderPlan(
+          plan,
+          profile,
+          getRiderKites(ctx.state, profile),
+          ctx.spot,
+          ctx.spotNotes,
+          showNight
+        );
+      })
+    )
+  ).filter(Boolean);
 
   lastPlans = plans;
   const dayAllocations = buildPlanDayAllocations(plans, ctx.state, ctx.spot, ctx.spotNotes);
 
   mountPlanResults(
-    plans.map((p) => renderRiderPlan(p, ctx.spot.name, showNight, ctx.state, dayAllocations)).join(""),
+    renderPlanResultsHtml(plans, ctx.spot, showNight, ctx.state, dayAllocations),
     ctx.state,
     plans,
     ctx.spot,
@@ -332,25 +363,33 @@ async function runPlan(state) {
       fetchSunSchedule(spot.lat, spot.lon, forecastDays),
     ]);
 
+    await loadCatalog();
+
+    const spotNotes = document.getElementById("plan-notes")?.value.trim() || "";
+
     /** @type {RiderPlan[]} */
-    const plans = profileIds
-      .map((id) => {
-        const profile = getProfile(state, id);
-        if (!profile) return null;
-        migrateProfilesToSharedQuiver(state);
-        return planRiderSessions({
-          profile,
-          spot,
-          forecast: wind.hourly ?? [],
-          tideHourly: tides.hourly ?? [],
-          availability,
-          spotNotes: document.getElementById("plan-notes")?.value.trim() || "",
-          showNight,
-          sunByDate,
-          kites: getRiderKites(state, profile),
-        });
-      })
-      .filter(Boolean);
+    const plans = (
+      await Promise.all(
+        profileIds.map(async (id) => {
+          const profile = getProfile(state, id);
+          if (!profile) return null;
+          migrateProfilesToSharedQuiver(state);
+          const kites = getRiderKites(state, profile);
+          const plan = planRiderSessions({
+            profile,
+            spot,
+            forecast: wind.hourly ?? [],
+            tideHourly: tides.hourly ?? [],
+            availability,
+            spotNotes,
+            showNight,
+            sunByDate,
+            kites,
+          });
+          return enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight);
+        })
+      )
+    ).filter(Boolean);
 
     const tideRule =
       spot.tideAccessRule && spot.tideAccessRule !== "none"
@@ -366,15 +405,14 @@ async function runPlan(state) {
       forecast: wind.hourly,
       tideHourly: tides.hourly,
       availability,
-      spotNotes: document.getElementById("plan-notes")?.value.trim() || "",
+      spotNotes,
       sunByDate,
     };
 
-    const spotNotes = document.getElementById("plan-notes")?.value.trim() || "";
     const dayAllocations = buildPlanDayAllocations(plans, state, spot, spotNotes);
 
     mountPlanResults(
-      plans.map((p) => renderRiderPlan(p, spot.name, showNight, state, dayAllocations)).join(""),
+      renderPlanResultsHtml(plans, spot, showNight, state, dayAllocations),
       state,
       plans,
       spot,
@@ -445,14 +483,235 @@ function buildPlanDayAllocations(plans, state, spot, spotNotes) {
 /** @param {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} dayAllocations */
 function renderPlanAllocationsSummary(dayAllocations) {
   if (!dayAllocations.size) return "";
+  return "";
+}
 
-  let html = "";
-  for (const [date, alloc] of dayAllocations) {
-    if (!alloc.bannerHtml) continue;
-    html += alloc.bannerHtml;
+/**
+ * @param {RiderPlan[]} plans
+ * @param {string} spotName
+ * @param {boolean} showNight
+ * @param {AppState} state
+ * @param {import('./spots-storage.js').KiteSpot} spot
+ * @param {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} dayAllocations
+ */
+function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations) {
+  const dates = [...new Set(plans.flatMap((p) => p.days.map((d) => d.date)))].sort();
+
+  const daysHtml = dates
+    .map((date) => {
+      const entries = getRiderDayEntries(date, plans);
+      if (!entries.length) return "";
+
+      const lead = entries[0].day;
+      const rec = lead.recommendation;
+      const crewVerdicts = entries.map(
+        (e) => e.day.recommendation?.verdict ?? e.day.dayVerdict
+      );
+      const crewVerdict = pickCrewDayVerdict(crewVerdicts);
+      const dayAlloc = dayAllocations.get(date);
+
+      const title = lead.planDayTitle ?? { prefix: null, primary: lead.dateLabel };
+      const sharedTips = buildSharedDayTips(lead, spot, [
+        document.getElementById("plan-notes")?.value?.trim(),
+        spot.localKnowledge,
+      ]
+        .filter(Boolean)
+        .join(". "));
+
+      const bringKit = mergeCrewBringKit(entries.map((e) => e.day.bringKit));
+      const bringHtml = bringKit ? renderBringKitHtml(bringKit, date) : "";
+
+      const riderVerdictSummary = entries
+        .map((e) => {
+          const v = e.day.recommendation?.verdict ?? e.day.dayVerdict;
+          return `<span class="plan-crew-rider-chip plan-crew-rider-chip--${v}">${escapeHtml(e.plan.profileName)}: ${escapeHtml(dayVerdictLabel(v))}</span>`;
+        })
+        .join("");
+
+      const heroHtml = rec
+        ? `<div class="plan-day-hero plan-day-hero--${crewVerdict}">
+            <div class="plan-day-hero-body">
+              ${title.prefix ? `<p class="plan-day-hero-prefix">${escapeHtml(title.prefix)}</p>` : ""}
+              <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
+              <p class="plan-day-hero-window">
+                Ride <strong>${escapeHtml(rec.windowLabel)}</strong>
+                · avg <strong>${formatKt(rec.avgWind)}</strong> kt
+                ${rec.windDirection ? ` ${escapeHtml(rec.windDirection)}` : ""}
+                ${rec.peakGust != null ? ` · gusts to <strong>${formatKt(rec.peakGust)}</strong> kt` : ""}
+              </p>
+              <p class="plan-crew-rider-verdicts">${riderVerdictSummary}</p>
+            </div>
+            <div class="plan-day-hero-aside">
+              <div class="plan-day-hero-verdict">${dayVerdictLabel(crewVerdict)}</div>
+              <p class="plan-crew-verdict-caption">Best crew window</p>
+              ${
+                crewVerdict === "go"
+                  ? `<div class="plan-day-hero-actions">
+                      <button type="button" class="btn-go-anthem" title="Open Fortunate Son on YouTube"><span class="btn-play-icon" aria-hidden="true">▶</span> Play Fortunate Son</button>
+                    </div>`
+                  : ""
+              }
+            </div>
+          </div>`
+        : `<div class="plan-day-hero plan-day-hero--${crewVerdict}">
+            <div class="plan-day-hero-body">
+              <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
+              <p class="plan-day-hero-advice">No solid powered window for the crew this day.</p>
+              <p class="plan-crew-rider-verdicts">${riderVerdictSummary}</p>
+            </div>
+            <div class="plan-day-hero-aside">
+              <div class="plan-day-hero-verdict">${dayVerdictLabel(crewVerdict)}</div>
+            </div>
+          </div>`;
+
+      const tipsHtml = sharedTips.length
+        ? `<details class="plan-day-tips" open>
+            <summary>What to expect on the water</summary>
+            <div class="plan-day-tips-body">
+              ${sharedTips.map((s) => `<p><strong>${escapeHtml(s.title)}</strong> ${escapeHtml(s.text)}</p>`).join("")}
+            </div>
+          </details>`
+        : "";
+
+      const ridersHtml = entries
+        .map(({ plan, day }) => {
+          const profile = getProfile(state, plan.profileId);
+          const sessionCount = profile?.calibration?.length ?? 0;
+          const verdict = day.recommendation?.verdict ?? day.dayVerdict;
+          const assign = dayAlloc?.assignments.find((a) => a.profileId === plan.profileId);
+          const unassigned = dayAlloc?.unassigned.find((u) => u.profileId === plan.profileId);
+          const recR = day.recommendation;
+
+          const compareHtml =
+            sessionCount > 0 && recR
+              ? `<div class="plan-day-compare plan-day-compare--inline">
+                  <label class="plan-compare-label">Past sessions</label>
+                  <select class="plan-day-compare-select" data-profile-id="${escapeHtml(plan.profileId)}" data-day-date="${escapeHtml(date)}">
+                    <option value="">Off</option>
+                    <option value="similar">3 closest</option>
+                  </select>
+                  <div class="plan-compare-results hidden" aria-live="polite"></div>
+                </div>`
+              : "";
+
+          return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">
+            <header class="plan-rider-day-head">
+              <h5>${escapeHtml(plan.profileName)}</h5>
+              <span class="plan-rider-day-verdict plan-day-hero-verdict plan-day-hero-verdict--small">${dayVerdictLabel(verdict)}</span>
+            </header>
+            ${
+              recR
+                ? `<p class="plan-rider-kite-line"><strong>${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</strong>${assign ? ` <span class="plan-rider-fit">(${assign.score}% need-fit)</span>` : ""}</p>
+                ${assign?.fairnessNote ? `<p class="plan-rider-fairness">${escapeHtml(assign.fairnessNote)}</p>` : ""}
+                ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="hint-tight">Ideal solo: ${escapeHtml(assign.soloPick.name)}</p>` : ""}
+                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
+                <p class="plan-rider-advice">${escapeHtml(cleanCopy(recR.kiteLine))}</p>
+                ${recR.timingNote && recR.timingNote !== sharedTips.find((t) => t.title === "Best time on the water")?.text ? `<p class="plan-rider-timing">${escapeHtml(cleanCopy(recR.timingNote))}</p>` : ""}
+                ${recR.skipNote ? `<p class="plan-day-hero-skip">${escapeHtml(recR.skipNote)}</p>` : ""}`
+                : `<p class="hint-tight">Not worth rigging for this rider today.</p>`
+            }
+            ${compareHtml}
+          </article>`;
+        })
+        .join("");
+
+      const timeline = renderDayTimeline(lead, showNight);
+      const tidesOnce = lead.tideTimes
+        ? `<p class="plan-day-tides">${escapeHtml(lead.tideTimes)}</p>`
+        : "";
+
+      return `<article class="plan-day-card plan-day-card--crew plan-day-card--${crewVerdict}" data-day-date="${escapeHtml(date)}">
+        ${heroHtml}
+        ${bringHtml}
+        ${timeline}
+        ${tidesOnce}
+        <section class="plan-crew-riders">
+          <h4 class="plan-crew-riders-title">Kite for each rider</h4>
+          <p class="hint hint-tight plan-crew-fair-hint">Shared quiver: assigned by who <strong>needs</strong> the power (weight + session history), not who enjoys a kite more.</p>
+          <div class="plan-crew-riders-grid">${ridersHtml}</div>
+        </section>
+        ${tipsHtml}
+      </article>`;
+    })
+    .join("");
+
+  return `<section class="plan-result plan-result--crew">
+    <header class="plan-result-head">
+      <h3>${plans.length} riders</h3>
+      <span class="plan-result-spot">${escapeHtml(spotName)}</span>
+    </header>
+    <div class="plan-days-stack">${daysHtml}</div>
+  </section>`;
+}
+
+function renderPlanResultsHtml(plans, spot, showNight, state, dayAllocations) {
+  if (plans.length >= 2) {
+    return renderPlanByDay(plans, spot.name, showNight, state, spot, dayAllocations);
   }
-  if (!html) return "";
-  return `<div class="plan-kite-allocation-wrap">${html}</div>`;
+  return plans
+    .map((p) => renderRiderPlan(p, spot.name, showNight, state, dayAllocations))
+    .join("");
+}
+
+/** @param {import('./plan-bring-kit.js').PlanBringKit|null} kit @param {string} dayDate */
+function renderBringKitHtml(kit, dayDate) {
+  if (!kit) return "";
+
+  const bringList =
+    kit.bring.length > 0
+      ? `<ul class="plan-bring-list">
+          ${kit.bring
+            .map(
+              (b) =>
+                `<li><strong>${escapeHtml(b.name)}</strong> <span class="plan-bring-meta">${formatKt(b.size)}m · ${escapeHtml(b.note)}</span></li>`
+            )
+            .join("")}
+        </ul>`
+      : `<p class="hint-tight">No quiver kite covers the forecast — see rental sizes below.</p>`;
+
+  const rentalHtml = kit.rentalNeeds.length
+    ? `<div class="plan-rental-needs">
+        ${kit.rentalNeeds
+          .map((r, idx) => {
+            const rid = `plan-rental-${dayDate}-${r.size}-${idx}`;
+            const ranked =
+              r.ranked.length > 0
+                ? `<ol class="plan-rental-ranked">
+                    ${r.ranked
+                      .map(
+                        (k, i) =>
+                          `<li>
+                            <span class="plan-rental-rank">${i + 1}</span>
+                            <strong>${escapeHtml(k.name)}</strong>
+                            <span class="plan-rental-meta">${escapeHtml(k.style)} · ${k.score}% fit · ${formatKt(k.windRange.min)}-${formatKt(k.windRange.max)} kt</span>
+                            <span class="plan-rental-reason">${escapeHtml(k.reason)}</span>
+                          </li>`
+                      )
+                      .join("")}
+                  </ol>`
+                : `<p class="hint-tight">No catalog match — ask shop for ~${r.label} all-round.</p>`;
+            return `<details class="plan-rental-size" id="${rid}">
+              <summary><strong>Rent ~${escapeHtml(r.label)}</strong> — ${escapeHtml(r.why)}</summary>
+              <div class="plan-rental-body">${ranked}</div>
+            </details>`;
+          })
+          .join("")}
+      </div>`
+    : "";
+
+  const warn =
+    kit.hasGap && kit.rentalNeeds.length
+      ? `<p class="plan-bring-warn">Gap in your quiver for this forecast. Rent or borrow the sizes below.</p>`
+      : "";
+
+  return `<section class="plan-bring-kit ${kit.hasGap ? "plan-bring-kit--gap" : ""}">
+    <h4 class="plan-bring-title">What to bring</h4>
+    <p class="plan-bring-headline">${escapeHtml(kit.headline)}</p>
+    <p class="plan-bring-risk">${escapeHtml(kit.riskNote)}</p>
+    ${warn}
+    ${bringList}
+    ${rentalHtml}
+  </section>`;
 }
 
 /** @param {RiderPlan} plan @param {string} spotName @param {boolean} showNight @param {AppState} state @param {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} [dayAllocations] */
@@ -543,9 +802,12 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
             </div>`
           : "";
 
+      const bringHtml = day.bringKit ? renderBringKitHtml(day.bringKit, day.date) : "";
+
       return `
         <article class="plan-day-card plan-day-card--${verdict}" data-day-date="${escapeHtml(day.date)}">
           ${heroHtml}
+          ${bringHtml}
           ${timeline}
           ${tidesOnce}
           ${compareHtml}
@@ -623,7 +885,7 @@ function renderDayTimeline(day, showNight) {
     .join("");
 
   return `<div class="plan-timeline-wrap">
-    <p class="plan-timeline-caption">Hour of day</p>
+    <p class="plan-timeline-caption">Hour of day <span class="plan-timeline-caption-sub">(size = suggested kite)</span></p>
     <div class="plan-timeline-scroll">
       <div class="plan-timeline-strip">
         <div class="plan-timeline">${cells}</div>
@@ -760,7 +1022,7 @@ export function refreshPlanCompareSelect() {}
 function mountPlanResults(html, state, plans, spot, dayAllocations = new Map()) {
   const results = document.getElementById("plan-results");
   const hasPlans = html.includes("plan-day-card");
-  const allocSummary = renderPlanAllocationsSummary(dayAllocations);
+  const allocSummary = plans.length >= 2 ? "" : renderPlanAllocationsSummary(dayAllocations);
   results.innerHTML = hasPlans ? renderPlanWindLegend(spot) + allocSummary + html : html;
   wirePlanTimelineTips(results);
   wirePlanDayCompare(results, state, plans, spot);

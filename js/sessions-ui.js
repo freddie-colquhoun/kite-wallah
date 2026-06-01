@@ -1,7 +1,7 @@
 import { createId } from "./ids.js";
 import { FEELING_LABELS } from "./calibration.js";
 import { getSpot, loadSpots, COMPASS } from "./spots-storage.js";
-import { getProfile } from "./storage.js";
+import { getProfile, syncRiderGearIdsFromSessions } from "./storage.js";
 import { getRiderKites, getRiderBoards } from "./quiver-storage.js";
 import {
   buildSessionIso,
@@ -83,7 +83,7 @@ export function renderSessionsPanel(state) {
   main.innerHTML = `
     <div class="card profile-section">
       <h2>Log a session  ·  ${escapeHtml(profile.name)}</h2>
-      <p class="hint hint-tight">Used for Plan comparisons and remembering what worked at this wind.</p>
+      <p class="hint hint-tight">Pick a kite from the shared Quiver (or Other size). Plan/Now score every brand in the quiver (charts + model character); logs on this kite count fully, same-size logs on other kites are a light hint only.</p>
       <form id="sessions-form">
         <div class="field-row field-row-tight">
           <div class="field"><label>Date</label><input type="date" id="sess-date" required /></div>
@@ -261,6 +261,7 @@ function renderSessionsList(profile) {
       const p = getProfile(state, state.activeProfileId);
       if (!p) return;
       p.calibration = p.calibration.filter((c) => c.id !== btn.dataset.rmSess);
+      syncRiderGearIdsFromSessions(p);
       onPersist(p);
       renderSessionsPanel(state);
       refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
@@ -281,7 +282,7 @@ function handleSessionSubmit(state) {
     if (!kiteSize) return;
   } else if (!val) return;
   else {
-    const k = profile.kites.find((x) => x.id === val);
+    const k = getRiderKites(state, profile).find((x) => x.id === val);
     if (!k) return;
     kiteSize = k.size;
     kiteName = k.name;
@@ -292,7 +293,7 @@ function handleSessionSubmit(state) {
   let boardId = null;
   let boardName = null;
   if (boardVal) {
-    const b = profile.boards.find((x) => x.id === boardVal);
+    const b = getRiderBoards(state, profile).find((x) => x.id === boardVal);
     if (b) {
       boardId = b.id;
       boardName = b.name;
@@ -347,6 +348,7 @@ function handleSessionSubmit(state) {
     return tb - ta;
   });
 
+  syncRiderGearIdsFromSessions(profile);
   onPersist(profile);
   refreshPlanCompareSelect(state, document.getElementById("plan-spot")?.value || null);
 

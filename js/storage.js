@@ -24,8 +24,8 @@ const STORAGE_KEY = "kitesurf-advisor-profiles-v3";
  * @property {string[]} [skills] legacy, unused in UI
  * @property {number|null} yearsRiding
  * @property {'freeride' | 'freestyle' | 'wave' | 'foil' | 'big-air'} preferredStyle
- * @property {string[]} kiteIds Links to shared quiver kites
- * @property {string[]} boardIds Links to shared quiver boards
+ * @property {string[]} kiteIds Kite ids from logged sessions only (not quiver assignment)
+ * @property {string[]} boardIds Board ids from logged sessions only
  * @property {Kite[]} [kites] legacy, migrated to shared quiver
  * @property {Board[]} [boards] legacy
  * @property {CalibrationEntry[]} calibration
@@ -175,7 +175,7 @@ export function loadState() {
 }
 
 function normalizeProfile(/** @type {RiderProfile} */ p) {
-  return {
+  const profile = {
     ...createEmptyProfile(p.name || "Rider"),
     ...p,
     ability: normalizeAbility(p.ability),
@@ -185,6 +185,20 @@ function normalizeProfile(/** @type {RiderProfile} */ p) {
       ? p.calibration.map((e) => normalizeSessionEntry(e))
       : [],
   };
+  syncRiderGearIdsFromSessions(profile);
+  return profile;
+}
+
+/** Derive kite/board links from session log — not from shared quiver size. */
+export function syncRiderGearIdsFromSessions(/** @type {RiderProfile} */ profile) {
+  const kiteIds = new Set();
+  const boardIds = new Set();
+  for (const e of profile.calibration || []) {
+    if (e.kiteId) kiteIds.add(e.kiteId);
+    if (e.boardId) boardIds.add(e.boardId);
+  }
+  profile.kiteIds = [...kiteIds];
+  profile.boardIds = [...boardIds];
 }
 
 /** Migrate v1 single-profile storage (writes to localStorage once). */
@@ -221,8 +235,7 @@ function migrateLegacyStorageNoPersist() {
   Object.assign(profile, rider, { calibration });
   const demoKites = hasData ? kites.map(normalizeKite) : seedDemoKites().map(normalizeKite);
   const demoBoards = hasData ? boards : seedDemoBoards();
-  profile.kiteIds = demoKites.map((k) => k.id);
-  profile.boardIds = demoBoards.map((b) => b.id);
+  syncRiderGearIdsFromSessions(profile);
 
   const state = {
     activeProfileId: profile.id,

@@ -10,6 +10,11 @@ import {
   scoreWindAgainstEffectiveRange,
   describeWindVsKiteRange,
 } from "./kite-personal-range.js";
+import {
+  getKiteCharacter,
+  kiteCharacterScoreAdjust,
+  compareSameSizeKitesNote,
+} from "./kite-character.js";
 
 /** @typedef {import('./ability-levels.js').AbilityLevel} AbilityLevel */
 /** @typedef {'flat' | 'choppy' | 'waves'} WaterType */
@@ -228,12 +233,19 @@ export function recommendKite(conditions, kites, calibration = []) {
         wind,
         calibration
       );
+      const character = effective.character ?? getKiteCharacter(kite);
+      const charAdjust = kiteCharacterScoreAdjust(
+        wind,
+        conditions.gustSpeed,
+        character
+      );
       const sessionBoost =
         effective.source === "sessions" && effective.confidence === "high" ? 8 : 0;
 
       return {
         kite,
-        score: Math.min(100, calibratedScore + sessionBoost),
+        score: Math.min(100, calibratedScore + sessionBoost + charAdjust),
+        character,
         baseScore: rangeScore,
         range: effective,
         catalog,
@@ -262,7 +274,7 @@ export function recommendKite(conditions, kites, calibration = []) {
       score: a.score,
       range: { min: a.range.min, ideal: a.range.ideal, max: a.range.max },
     })),
-    reason: buildKiteReason({ ...best, inRange, inCatalog }, conditions, cal),
+    reason: buildKiteReason({ ...best, inRange, inCatalog }, conditions, cal, scored),
     comfortNote: describeWindVsKiteRange(wind, best.effective),
     calibration: cal,
   };
@@ -273,11 +285,18 @@ export function recommendKite(conditions, kites, calibration = []) {
  * @param {Conditions} conditions
  * @param {ReturnType<typeof getCalibrationAtWind>} cal
  */
-function buildKiteReason(best, conditions, cal) {
+/**
+ * @param {object} best
+ * @param {Conditions} conditions
+ * @param {ReturnType<typeof getCalibrationAtWind>} cal
+ * @param {Array<{ kite: Kite, effective: ReturnType<typeof getEffectiveKiteRange> }>} [allScored]
+ */
+function buildKiteReason(best, conditions, cal, allScored = []) {
   const { kite, range, catalog, effective, inRange, band } = best;
   const name = kite.name || `${kite.brand ?? ""} ${kite.size}m`.trim();
   const specNote = kite.specsSource === "manufacturer" ? "manufacturer chart" : "estimated chart";
   const wind = conditions.windSpeed;
+  const character = effective.character ?? getKiteCharacter(kite);
 
   let reason = "";
 
@@ -295,6 +314,8 @@ function buildKiteReason(best, conditions, cal) {
     }
   } else if (effective.source === "blend" && effective.personal?.happyCount) {
     reason = `${name} sized using your session history and the ${specNote}.`;
+  } else if (effective.source === "size-hint") {
+    reason = `${name}: ${character.label}. Sized from same-size sessions on other kites plus ${specNote}.`;
   } else if (inRange) {
     if (Math.abs(wind - range.ideal) <= 2) {
       reason = `${name} sits in the sweet spot of its ${specNote} at ${wind} kt.`;
@@ -302,6 +323,9 @@ function buildKiteReason(best, conditions, cal) {
       reason = `${name} should give enough power at ${wind} kt without feeling overpowered.`;
     } else {
       reason = `${name} is toward the top of its ${specNote} at ${wind} kt.`;
+    }
+    if (character.label && effective.source === "catalog") {
+      reason += ` ${character.label}.`;
     }
   } else if (wind < catalog.min) {
     reason = `${name} is your largest kite but ${wind} kt may still feel light (chart from ${catalog.min} kt).`;
@@ -316,6 +340,14 @@ function buildKiteReason(best, conditions, cal) {
     } else if (diff >= 1.5) {
       reason += ` You've often used ~${cal.preferredSize}m near ${wind} kt; log more on ${name} to tune this kite.`;
     }
+  }
+
+  const alt = allScored.find(
+    (s) => s.kite.id !== kite.id && Math.abs(s.kite.size - kite.size) < 0.25
+  );
+  if (alt) {
+    const compare = compareSameSizeKitesNote(kite, alt.kite);
+    if (compare) reason += ` ${compare}`;
   }
 
   return reason;

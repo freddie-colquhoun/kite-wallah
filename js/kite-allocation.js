@@ -2,6 +2,7 @@
  * Assign unique kites when multiple riders share one quiver (Plan + Now).
  */
 
+import { allocateKitesFairly } from "./fair-kite-allocation.js";
 import { recommendKite } from "./engine.js";
 import { formatKt } from "./format.js";
 import { kiteDisplayTitle } from "./quiver-storage.js";
@@ -31,6 +32,7 @@ const MIN_SUITABLE_SCORE = 45;
  * @property {number} score
  * @property {Kite|null} soloPick
  * @property {KiteRecommendation|null} kiteRec
+ * @property {string|null} [fairnessNote]
  */
 
 /**
@@ -100,6 +102,10 @@ export function allocateKitesForRiders(riders, allKites, opts = {}) {
     };
   }
 
+  if (rideableRiders.length >= 2) {
+    return allocateKitesFairly(rideableRiders, allKites);
+  }
+
   if (rideableRiders.length === 1) {
     const r = rideableRiders[0];
     const kiteRec = recommendKite(r.conditions, allKites, r.calibration);
@@ -135,71 +141,7 @@ export function allocateKitesForRiders(riders, allKites, opts = {}) {
     return result;
   }
 
-  const prefs = rideableRiders.map((r) => ({
-    ...r,
-    scored: scoreAllKites(r.conditions, allKites, r.calibration),
-    solo: recommendKite(r.conditions, allKites, r.calibration),
-  }));
-
-  prefs.sort((a, b) => {
-    const aCount = a.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE).length;
-    const bCount = b.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE).length;
-    return aCount - bCount;
-  });
-
-  const usedIds = new Set();
-  /** @type {KiteAssignment[]} */
-  const assignments = [];
-  /** @type {UnassignedRider[]} */
-  const unassigned = [];
-
-  for (const r of prefs) {
-    const suitable = r.scored.filter((s) => s.score >= MIN_SUITABLE_SCORE && !usedIds.has(s.kite.id));
-    const fallback = r.scored.find((s) => !usedIds.has(s.kite.id));
-    const pick = suitable[0] || fallback;
-
-    if (!pick) {
-      unassigned.push({
-        profileId: r.profileId,
-        name: r.name,
-        reason: "shortage",
-        message: `${r.name}: no kite left in the quiver — may need to rent one.`,
-        soloPick: r.solo?.kite ?? null,
-      });
-      continue;
-    }
-
-    if (pick.score < MIN_SUITABLE_SCORE) {
-      unassigned.push({
-        profileId: r.profileId,
-        name: r.name,
-        reason: "shortage",
-        message: `${r.name}: no good kite left (best unused ${pick.kite.name} is only ${pick.score}% fit). Consider renting.`,
-        soloPick: r.solo?.kite ?? null,
-      });
-      continue;
-    }
-
-    usedIds.add(pick.kite.id);
-    const kiteRec = recommendKite(r.conditions, [pick.kite], r.calibration);
-    assignments.push({
-      profileId: r.profileId,
-      name: r.name,
-      kite: pick.kite,
-      score: pick.score,
-      soloPick: r.solo?.kite ?? null,
-      kiteRec,
-    });
-  }
-
-  const needRental = unassigned.filter((u) => u.reason === "shortage").length;
-  const result = {
-    assignments,
-    unassigned,
-    needRental,
-    bannerHtml: renderAllocationBannerHtml({ assignments, unassigned, needRental }, contextLabel),
-  };
-  return result;
+  return emptyAllocation(contextLabel);
 }
 
 /** @param {string} contextLabel */

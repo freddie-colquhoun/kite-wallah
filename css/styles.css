@@ -3248,6 +3248,247 @@ textarea {
   font-weight: 500;
 }
 
+.plan-hour-kite {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.plan-hour-kite--good {
+  opacity: 1;
+}
+
+.plan-hour-kite--marginal {
+  opacity: 0.85;
+}
+
+.plan-hour-kite--none {
+  opacity: 0.55;
+}
+
+.plan-timeline-caption-sub {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.plan-bring-kit {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius, 10px);
+  background: var(--surface-elevated, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.plan-bring-kit--gap {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.plan-bring-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.plan-bring-headline {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.plan-bring-risk,
+.plan-bring-warn {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #475569);
+}
+
+.plan-bring-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.plan-bring-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+}
+
+.plan-bring-meta {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.plan-rental-needs {
+  margin-top: 0.65rem;
+}
+
+.plan-rental-size {
+  margin-bottom: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.plan-rental-size summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.plan-rental-body {
+  margin: 0.5rem 0 0.25rem;
+  padding-left: 0.25rem;
+}
+
+.plan-rental-ranked {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.plan-rental-ranked li {
+  margin-bottom: 0.5rem;
+  padding-left: 1.75rem;
+  position: relative;
+}
+
+.plan-rental-rank {
+  position: absolute;
+  left: 0;
+  font-weight: 800;
+  color: var(--accent, #0ea5e9);
+}
+
+.plan-rental-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.plan-rental-reason {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+.plan-result--crew .plan-result-head h3 {
+  font-size: 1.125rem;
+}
+
+.plan-day-card--crew {
+  border-width: 2px;
+}
+
+.plan-crew-rider-verdicts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.plan-crew-rider-chip {
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--surface-elevated, #f1f5f9);
+  font-weight: 600;
+}
+
+.plan-crew-verdict-caption {
+  margin: 0.25rem 0 0;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.plan-crew-riders {
+  margin: 1rem 0 0;
+}
+
+.plan-crew-riders-title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.plan-crew-fair-hint {
+  margin: 0 0 0.75rem;
+}
+
+.plan-crew-riders-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .plan-crew-riders-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.plan-rider-day-card {
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--border, #e2e8f0);
+  background: #fff;
+}
+
+.plan-rider-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.plan-rider-day-head h5 {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.plan-day-hero-verdict--small {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.plan-rider-kite-line {
+  margin: 0 0 0.35rem;
+  font-size: 0.875rem;
+}
+
+.plan-rider-fit {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.plan-rider-fairness {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: #0f766e;
+  font-weight: 500;
+}
+
+.plan-rider-advice,
+.plan-rider-timing {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.plan-day-compare--inline {
+  margin-top: 0.65rem;
+}
+
 /* Night hours: same hue, dimmed */
 .plan-hour--is-dark {
   filter: brightness(0.72) saturate(0.85);

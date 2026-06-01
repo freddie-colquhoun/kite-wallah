@@ -323,8 +323,11 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
   if (!riderKites.length || !riderBoards.length) {
     gearHtml = `<div class="empty-quiver-cta">Add kites and boards on the <strong>Quiver</strong> tab.</div>`;
   } else if (suitability.rideable && kiteRec && boardRec) {
-    const allocNote =
-      kiteAssignment && kiteAssignment.soloPick && kiteAssignment.soloPick.id !== kiteAssignment.kite.id
+    const allocNote = kiteAssignment?.fairnessNote
+      ? `<p class="kite-allocation-note hint-tight">${escapeHtml(kiteAssignment.fairnessNote)}</p>`
+      : kiteAssignment &&
+          kiteAssignment.soloPick &&
+          kiteAssignment.soloPick.id !== kiteAssignment.kite.id
         ? `<p class="kite-allocation-note hint-tight">Shared quiver pick (their solo choice was ${escapeHtml(kiteAssignment.soloPick.name)}).</p>`
         : "";
     const altHtml = kiteRec.alternatives.length
@@ -538,7 +541,7 @@ function renderProfileNav() {
       <button type="button" class="profile-nav-btn ${p.id === state.activeProfileId ? "active" : ""}" data-profile-id="${p.id}">
         <span class="profile-nav-text">
           <span>${escapeHtml(p.name)}</span>
-          <small>${state.quiver?.kites?.length ?? 0} kites · ${p.calibration.length} sessions</small>
+          <small>${p.calibration.length ? `${p.calibration.length} session${p.calibration.length === 1 ? "" : "s"} logged` : "No sessions logged"}</small>
         </span>
       </button>
     </li>`
@@ -610,7 +613,7 @@ function renderProfileEditor() {
 
     <div class="card profile-section profile-section--hint">
       <h2>Sessions</h2>
-      <p class="hint" style="margin:0">Log past sessions on the <strong>Sessions</strong> tab. Used for Plan comparisons and per-kite comfort ranges.</p>
+      <p class="hint" style="margin:0">Log sessions on the <strong>Sessions</strong> tab. Plan/Now compare <strong>all</strong> crew quiver kites; history only personalizes kites you have logged on.</p>
     </div>`;
 
   document.getElementById("edit-ability")?.addEventListener("change", (e) => {

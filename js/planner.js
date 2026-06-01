@@ -18,6 +18,7 @@ import {
 import { computeRideableWindWindow } from "./plan-recommendation.js";
 import { buildPlanKitePick } from "./plan-kite-algorithm.js";
 import { buildPlanTimingTips } from "./plan-window-commentary.js";
+import { buildPlanBringKit } from "./plan-bring-kit.js";
 import { cleanCopy } from "./copy-format.js";
 
 /** @typedef {import('./storage.js').RiderProfile} RiderProfile */
@@ -59,6 +60,7 @@ import { cleanCopy } from "./copy-format.js";
  * @property {boolean} windOffshore
  * @property {boolean} tideRuleActive
  * @property {string|null} kiteName
+ * @property {import('./plan-hourly-kites.js').PlanHourKitePick|null} [kitePick]
  * @property {string[]} notes
  */
 
@@ -83,6 +85,7 @@ import { cleanCopy } from "./copy-format.js";
  * @property {TimeBlock[]} blocks
  * @property {HourAssessment[]} hours
  * @property {number} darkHoursHidden
+ * @property {import('./plan-bring-kit.js').PlanBringKit|null} [bringKit]
  */
 
 /**
@@ -592,4 +595,39 @@ export function getTomorrowDate() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return localDateKey(d);
+}
+
+/**
+ * Attach hourly kite picks + risk-averse bring list (requires catalog preload).
+ * @param {RiderPlan} plan
+ * @param {RiderProfile} profile
+ * @param {import('./engine.js').Kite[]} kites
+ * @param {KiteSpot} spot
+ * @param {string} spotNotes
+ * @param {boolean} showNight
+ */
+export async function enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight) {
+  const skillLimits = getProfileSkillLimits(profile);
+
+  for (const day of plan.days) {
+    const scorable = day.hours.filter((h) => isScorableHour(h, showNight));
+    const rideable = computeRideableWindWindow(scorable, skillLimits);
+
+    day.bringKit = await buildPlanBringKit({
+      profile,
+      kites,
+      spotNotes,
+      waterType: spot.waterType,
+      scorable,
+      rideable,
+      limits: skillLimits,
+    });
+
+    const pickByTime = new Map(day.bringKit.hourly.map((p) => [p.time, p]));
+    for (const h of day.hours) {
+      h.kitePick = pickByTime.get(h.time) ?? null;
+    }
+  }
+
+  return plan;
 }

@@ -139,6 +139,44 @@ export async function fetchKiteSpecs(brandInput, modelInput, size, rider = {}) {
   };
 }
 
+/**
+ * All catalog entries at a size (for rental rankings). Call after loadCatalog().
+ * @param {number} size
+ * @param {{ weight?: number, sex?: string }} [rider]
+ */
+export function listCatalogKitesAtSize(size, rider = {}) {
+  if (!catalog) return [];
+  const sizeKey = String(size);
+  /** @type {import('./engine.js').Kite[]} */
+  const out = [];
+
+  for (const [brand, models] of Object.entries(catalog.brands)) {
+    for (const [model, spec] of Object.entries(models)) {
+      const sizeSpec = spec.sizes[sizeKey];
+      if (!sizeSpec) continue;
+      const windRange = adjustWindRange(
+        sizeSpec,
+        rider.weight ?? 75,
+        sizeSpec.weightRef,
+        rider.sex
+      );
+      out.push({
+        id: `catalog-${brand}-${model}-${size}`,
+        brand,
+        model,
+        size,
+        name: `${brand} ${model} ${size}m`,
+        type: spec.type,
+        style: spec.style,
+        windRange,
+        weightRef: sizeSpec.weightRef,
+        specsSource: "manufacturer",
+      });
+    }
+  }
+  return out;
+}
+
 export function searchKites(query) {
   if (!catalog || !query.trim()) return [];
   const q = normalize(query);

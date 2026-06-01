@@ -16,7 +16,7 @@ import {
   kiteDisplayTitle,
   migrateProfilesToSharedQuiver,
 } from "./quiver-storage.js";
-import { saveState } from "./storage.js";
+import { saveState, getProfile } from "./storage.js";
 
 /** @typedef {import('./storage.js').AppState} AppState */
 /** @typedef {import('./quiver-storage.js').Kite} Kite */
@@ -51,6 +51,16 @@ export function refreshQuiverPanel(state) {
   renderQuiverPanel();
 }
 
+function getQuiverRiderForSpecs() {
+  if (!quiverState) return { weight: 75, sex: "unspecified" };
+  const profile = getProfile(quiverState, quiverState.activeProfileId);
+  if (!profile) return { weight: 75, sex: "unspecified" };
+  return {
+    weight: profile.weight,
+    sex: profile.sex === "male" || profile.sex === "female" ? profile.sex : "unspecified",
+  };
+}
+
 function persist(/** @type {(s: AppState) => void} */ onChange) {
   if (!quiverState) return;
   saveState(quiverState);
@@ -68,7 +78,7 @@ function renderQuiverPanel() {
     <div class="quiver-layout">
       <div class="card card-slim">
         <h2>Kites</h2>
-        <p class="hint hint-tight">Use colours and labels so you can tell kites apart.</p>
+        <p class="hint hint-tight">Shared crew quiver — every rider's Plan and Now picks from all kites here (manufacturer chart + any sessions logged on each kite).</p>
         <button type="button" class="btn btn-primary btn-sm" id="quiver-add-kite-btn">+ Add kite</button>
       </div>
       <div id="quiver-kite-grid" class="quiver-kite-grid">${renderKiteCards(kites)}</div>
@@ -482,7 +492,8 @@ function wireKiteEditor(k) {
     specPreview.classList.remove("hidden");
     specPreview.textContent = "Looking up specs…";
     try {
-      pendingKiteSpec = await fetchKiteSpecs(brand, model, size, { weight: 75, sex: "unspecified" });
+      const rider = getQuiverRiderForSpecs();
+      pendingKiteSpec = await fetchKiteSpecs(brand, model, size, rider);
       specPreview.innerHTML = `<strong>${pendingKiteSpec.brand} ${pendingKiteSpec.model} ${formatNum(pendingKiteSpec.size, 0)}m</strong> · ${formatKt(pendingKiteSpec.windRange.min)}-${formatKt(pendingKiteSpec.windRange.max)} kt`;
     } catch (err) {
       specPreview.textContent = err.message;
