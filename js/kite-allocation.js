@@ -42,6 +42,12 @@ const MIN_SUITABLE_SCORE = 45;
  * @property {'shortage'|'no-kite'|'not-rideable'} reason
  * @property {string} message
  * @property {Kite|null} [soloPick]
+ * @property {number} [idealSize]
+ * @property {number|null} [minAdequate]
+ * @property {number} [rentSize]
+ * @property {Kite|null} [poorFitKite]
+ * @property {number|null} [poorFitScore]
+ * @property {string|null} [soloTakenBy]
  */
 
 /**

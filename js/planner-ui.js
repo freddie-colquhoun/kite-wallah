@@ -771,7 +771,11 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
               ? renderRelevantSessionNoteHtml(profile, spot, recR, assign)
               : "";
 
-          const kiteDisplay = buildRiderKiteDisplayHtml(assign ?? null, unassigned ?? null);
+          const kiteDisplay = buildRiderKiteDisplayHtml(
+            assign ?? null,
+            unassigned ?? null,
+            recR.avgWind
+          );
 
           return `<article class="plan-rider-day-card plan-rider-day-card--${verdict}">
             <header class="plan-rider-day-head">

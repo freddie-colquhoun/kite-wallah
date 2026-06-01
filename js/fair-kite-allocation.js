@@ -283,9 +283,49 @@ function escapeAllocHtml(str) {
  * @param {UnassignedRider|null} unassigned
  * @returns {{ html: string, isWarn: boolean }|null}
  */
-export function buildRiderKiteDisplayHtml(assign, unassigned) {
+/**
+ * @param {RiderAllocInput & { idealSize?: number, minAdequate?: number|null, solo?: { kite: Kite }|null }} r
+ * @param {{ kite: Kite, need: number }|null} [poorFitPick]
+ */
+function computeRentSize(r, poorFitPick = null) {
+  const weight = r.conditions.riderWeight ?? 75;
+  const wind = r.conditions.windSpeed;
+  let size = r.idealSize ?? idealKiteSizeForWind(wind, weight);
+  if (r.minAdequate != null) size = Math.max(size, r.minAdequate);
+  const soloSize = r.solo?.kite?.size;
+  if (soloSize != null && soloSize >= size - 0.25) size = Math.max(size, soloSize);
+
+  if (poorFitPick) {
+    const left = poorFitPick.kite.size;
+    if (left < size - 0.5) size = Math.max(size, Math.round((size + 1) * 2) / 2);
+    else if (left > size + 0.75) size = Math.round(size * 2) / 2;
+  }
+
+  return Math.round(size * 2) / 2;
+}
+
+/**
+ * @param {UnassignedRider[]} unassigned
+ * @param {KiteAssignment[]} assignments
+ */
+function linkSoloKitesTakenByOthers(unassigned, assignments) {
+  for (const u of unassigned) {
+    if (!u.soloPick) continue;
+    const holder = assignments.find((a) => a.kite.id === u.soloPick.id);
+    if (holder) u.soloTakenBy = holder.name;
+  }
+}
+
+/**
+ * @param {KiteAssignment|null} assign
+ * @param {UnassignedRider|null} unassigned
+ * @param {number|null} [windKt]
+ * @returns {{ html: string, isWarn: boolean }|null}
+ */
+export function buildRiderKiteDisplayHtml(assign, unassigned, windKt = null) {
   const solo = assign?.soloPick ?? unassigned?.soloPick ?? null;
   const idealLabel = solo?.name ?? null;
+  const windLabel = windKt != null ? formatKt(windKt) : null;
 
   if (assign && !unassigned) {
     const assignedName = assign.kite.name;
@@ -304,15 +344,50 @@ export function buildRiderKiteDisplayHtml(assign, unassigned) {
   }
 
   if (unassigned) {
-    const rentSize = solo?.size;
-    const idealLine = idealLabel
+    const rentSize = unassigned.rentSize ?? solo?.size;
+    const idealSize = unassigned.idealSize;
+    const showSoloIdeal =
+      idealLabel &&
+      solo &&
+      idealSize != null &&
+      solo.size >= idealSize - 0.5 &&
+      !unassigned.soloTakenBy;
+
+    const idealLine = showSoloIdeal
       ? `<p class="plan-rider-kite-line"><strong>Ideal kite:</strong> ${escapeAllocHtml(idealLabel)}</p>`
-      : "";
+      : rentSize
+        ? `<p class="plan-rider-kite-line"><strong>Ideal size:</strong> ~${rentSize}m${windLabel ? ` at ${windLabel} kt` : ""} for your weight</p>`
+        : "";
+
+    /** @type {string[]} */
+    const reasons = [];
+    if (unassigned.soloTakenBy && unassigned.soloPick) {
+      reasons.push(
+        `<strong>${escapeAllocHtml(unassigned.soloPick.name)}</strong> is with <strong>${escapeAllocHtml(unassigned.soloTakenBy)}</strong> — not free for you.`
+      );
+    }
+    if (unassigned.poorFitKite) {
+      const name = unassigned.poorFitKite.name || `${unassigned.poorFitKite.size}m`;
+      const score =
+        unassigned.poorFitScore != null ? ` (${unassigned.poorFitScore}% need-fit)` : "";
+      const tooSmall =
+        idealSize != null && unassigned.poorFitKite.size < idealSize - 0.5;
+      reasons.push(
+        tooSmall
+          ? `Only <strong>${escapeAllocHtml(name)}</strong> was left${score} — too small for you in this wind.`
+          : `Only <strong>${escapeAllocHtml(name)}</strong> was left${score} — not a good match for you here.`
+      );
+    }
+    if (!reasons.length) {
+      reasons.push("No kite left in the shared bag that works for you in this window.");
+    }
+
     const rentLine = rentSize
-      ? `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent ~${rentSize}m for this wind.</p>`
-      : `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent a suitable size for this wind.</p>`;
+      ? `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent ~${rentSize}m${windLabel ? ` for ${windLabel} kt` : ""}, or sit out.</p>`
+      : `<p class="plan-rider-kite-alt hint-tight"><strong>Recommendation:</strong> Rent a suitable size, or sit out.</p>`;
+
     return {
-      html: `<div class="plan-rider-kite-warn-block">${idealLine}<p class="plan-rider-kite-line">No workable kite in the shared bag for the main ride window.</p>${rentLine}</div>`,
+      html: `<div class="plan-rider-kite-warn-block">${idealLine}${reasons.map((t) => `<p class="plan-rider-kite-line">${t}</p>`).join("")}${rentLine}</div>`,
       isWarn: true,
     };
   }
@@ -335,13 +410,19 @@ function pickKiteForSharedQuiver(r, usedIds, medianWeight) {
     return r.scored.find((s) => !usedIds.has(s.kite.id)) ?? null;
   }
 
+  const preferLarge = weight >= medianWeight;
   const soloId = r.solo?.kite?.id;
   if (soloId) {
     const soloRow = suitable.find((s) => s.kite.id === soloId);
-    if (soloRow) return soloRow;
+    if (soloRow) {
+      const largest = [...suitable].sort((a, b) => b.kite.size - a.kite.size)[0];
+      const keepSolo =
+        !preferLarge ||
+        !largest ||
+        soloRow.kite.size >= largest.kite.size - 0.5;
+      if (keepSolo) return soloRow;
+    }
   }
-
-  const preferLarge = weight >= medianWeight;
   const sorted = [...suitable].sort((a, b) =>
     preferLarge ? b.kite.size - a.kite.size : a.kite.size - b.kite.size
   );
@@ -523,6 +604,9 @@ export function allocateKitesFairly(riders, allKites) {
         reason: "shortage",
         message: `${r.name}: no kite left in the quiver — may need to rent.`,
         soloPick: r.solo?.kite ?? null,
+        idealSize: r.idealSize,
+        minAdequate: r.minAdequate ?? null,
+        rentSize: computeRentSize(r, null),
       });
       continue;
     }
@@ -534,6 +618,11 @@ export function allocateKitesFairly(riders, allKites) {
         reason: "shortage",
         message: buildPoorFitUnassignedMessage(r, pick),
         soloPick: r.solo?.kite ?? null,
+        idealSize: r.idealSize,
+        minAdequate: r.minAdequate ?? null,
+        rentSize: computeRentSize(r, pick),
+        poorFitKite: pick.kite,
+        poorFitScore: pick.need,
       });
       continue;
     }
@@ -549,6 +638,8 @@ export function allocateKitesFairly(riders, allKites) {
       fairnessNote: null,
     });
   }
+
+  linkSoloKitesTakenByOthers(unassigned, assignments);
 
   const needRental = unassigned.filter((u) => u.reason === "shortage").length;
   const result = { assignments, unassigned, needRental, bannerHtml: "" };
