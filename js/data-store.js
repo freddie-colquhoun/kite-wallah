@@ -2,7 +2,6 @@
  * Shared data: Supabase when configured (public read/write, no sign-in), else localStorage.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CLOUD_CONFIG } from "./config.js";
 import {
   readLocalState,
@@ -22,6 +21,44 @@ import {
 
 const CREW_ROW_ID = "crew";
 const PERSIST_DEBOUNCE_MS = 700;
+const REMOTE_FETCH_TIMEOUT_MS = 12_000;
+const REMOTE_SAVE_TIMEOUT_MS = 12_000;
+const SUPABASE_IMPORT_TIMEOUT_MS = 10_000;
+
+/**
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} ms
+ * @param {string} label
+ * @returns {Promise<T>}
+ */
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+/** @returns {Promise<import('@supabase/supabase-js').SupabaseClient>} */
+async function createSupabaseClient(config) {
+  const mod = await withTimeout(
+    import("https://esm.sh/@supabase/supabase-js@2.49.1"),
+    SUPABASE_IMPORT_TIMEOUT_MS,
+    "Supabase library load"
+  );
+  return mod.createClient(config.supabaseUrl, config.supabaseAnonKey);
+}
 
 /** @type {import('@supabase/supabase-js').SupabaseClient|null} */
 let supabase = null;
@@ -103,7 +140,23 @@ export async function bootstrapData() {
     return { ok: true, state: loadState(), cloudMode: false, cloudIssue: "none" };
   }
 
-  supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+  try {
+    supabase = await createSupabaseClient(config);
+  } catch (err) {
+    lastFetchError = err instanceof Error ? err : new Error(String(err));
+    installState(localState);
+    installSpots(localSpots);
+    installSettings(localSettings);
+    mode = "local";
+    setCloudWriteBlocked(true);
+    cloudIssue = "load_failed";
+    setSyncStatus("Shared data unavailable — using this device");
+    showCloudAlert("load_failed", lastFetchError);
+    window.__schedulePersist = schedulePersist;
+    wireCloudRecovery();
+    return { ok: true, state: loadState(), cloudMode: false, cloudIssue };
+  }
+
   mode = "cloud";
   setCloudWriteBlocked(false);
 
@@ -247,21 +300,31 @@ function buildSnapshot() {
 async function fetchRemoteSnapshot() {
   if (!supabase) return null;
   lastFetchError = null;
-  const { data, error } = await supabase
-    .from("crew_state")
-    .select("payload, updated_at")
-    .eq("id", CREW_ROW_ID)
-    .maybeSingle();
-  if (error) {
-    lastFetchError = error;
-    console.warn("crew_state fetch", error);
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from("crew_state")
+        .select("payload, updated_at")
+        .eq("id", CREW_ROW_ID)
+        .maybeSingle(),
+      REMOTE_FETCH_TIMEOUT_MS,
+      "Shared data fetch"
+    );
+    if (error) {
+      lastFetchError = error;
+      console.warn("crew_state fetch", error);
+      return null;
+    }
+    if (!data) return null;
+    return {
+      payload: data.payload,
+      updatedAtMs: data.updated_at ? new Date(data.updated_at).getTime() : 0,
+    };
+  } catch (err) {
+    lastFetchError = err instanceof Error ? err : new Error(String(err));
+    console.warn("crew_state fetch", lastFetchError);
     return null;
   }
-  if (!data) return null;
-  return {
-    payload: data.payload,
-    updatedAtMs: data.updated_at ? new Date(data.updated_at).getTime() : 0,
-  };
 }
 
 /** @returns {Promise<boolean>} */
@@ -270,11 +333,21 @@ async function pushSnapshotNow() {
   if (window.__cloudWriteBlocked) return false;
   setSyncStatus("Saving…");
   const payload = buildSnapshot();
-  const { error } = await supabase.from("crew_state").upsert({
-    id: CREW_ROW_ID,
-    payload,
-    updated_at: new Date().toISOString(),
-  });
+  let error = null;
+  try {
+    const result = await withTimeout(
+      supabase.from("crew_state").upsert({
+        id: CREW_ROW_ID,
+        payload,
+        updated_at: new Date().toISOString(),
+      }),
+      REMOTE_SAVE_TIMEOUT_MS,
+      "Shared data save"
+    );
+    error = result.error;
+  } catch (err) {
+    error = err instanceof Error ? err : new Error(String(err));
+  }
   if (error) {
     console.warn("crew_state upsert", error);
     cloudIssue = "save_failed";

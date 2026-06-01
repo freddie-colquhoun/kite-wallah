@@ -34,6 +34,7 @@ import { rankRentalKitesForWind } from "./rental-kite-ranker.js";
  * @property {boolean} hasGap
  * @property {PlanRentalNeed[]} rentalNeeds
  * @property {PlanHourKitePick[]} hourly
+ * @property {'renting'|'packed'|null} [travelMode]
  */
 
 const MIN_QUIVER_FIT = 50;
@@ -48,6 +49,7 @@ const MIN_RENTAL_TRIGGER = 52;
  * @param {HourAssessment[]} p.scorable
  * @param {import('./plan-recommendation.js').RideableWindSummary|null} p.rideable
  * @param {{ minWind: number, maxWind: number, maxGustSpread: number }} p.limits
+ * @param {import('./plan-travel.js').PlanTravelOptions} [p.travel]
  */
 export async function buildPlanBringKit({
   profile,
@@ -57,7 +59,14 @@ export async function buildPlanBringKit({
   scorable,
   rideable,
   limits,
+  travel,
 }) {
+  const travelMode =
+    travel?.enabled && travel.mode === "renting"
+      ? "renting"
+      : travel?.enabled && travel.mode === "packed"
+        ? "packed"
+        : null;
   const hourly = buildPlanHourlyKites(
     profile,
     kites,
@@ -76,10 +85,11 @@ export async function buildPlanBringKit({
       hasGap: !kites.length,
       rentalNeeds: [],
       hourly,
+      travelMode,
     };
   }
 
-  const quiverEmpty = !kites.length;
+  const quiverEmpty = travelMode !== "renting" && !kites.length;
   const quiverById = new Map(kites.map((k) => [k.id, k]));
   const quiverSizes = [...new Set(kites.map((k) => k.size))].sort((a, b) => a - b);
 
@@ -153,16 +163,26 @@ export async function buildPlanBringKit({
     }
   }
 
-  const bring = [...bringIds]
-    .map((id) => quiverById.get(id))
-    .filter(Boolean)
-    .sort((a, b) => a.size - b.size)
-    .map((k) => ({
-      id: k.id,
-      name: k.name,
-      size: k.size,
-      note: gusty && k.size === quiverSizes[0] ? "Gust insurance" : "Covers forecast hours",
-    }));
+  const bring =
+    travelMode === "renting"
+      ? []
+      : [...bringIds]
+          .map((id) => quiverById.get(id))
+          .filter(Boolean)
+          .sort((a, b) => a.size - b.size)
+          .map((k) => ({
+            id: k.id,
+            name: k.name,
+            size: k.size,
+            note:
+              travelMode === "packed"
+                ? gusty && k.size === quiverSizes[0]
+                  ? "Gust insurance (packed)"
+                  : "Packed · covers forecast hours"
+                : gusty && k.size === quiverSizes[0]
+                  ? "Gust insurance"
+                  : "Covers forecast hours",
+          }));
 
   /** @type {PlanRentalNeed[]} */
   const rentalNeeds = [];
@@ -170,7 +190,7 @@ export async function buildPlanBringKit({
 
   for (const [size, ref] of sizeNeeds) {
     const hasQuiverAtSize = kites.some(
-      (k) => Math.abs(k.size - size) < 0.35 && bringIds.has(k.id)
+      (k) => Math.abs(k.size - size) < 0.35 && (travelMode === "renting" || bringIds.has(k.id))
     );
     const bestAtSize = kites.length
       ? recommendKite(
@@ -190,6 +210,8 @@ export async function buildPlanBringKit({
     const quiverOk =
       bestAtSize && bestAtSize.score >= MIN_RENTAL_TRIGGER && bestAtSize.inRange;
 
+    if (travelMode === "renting" && quiverOk) continue;
+
     if (quiverOk && hasQuiverAtSize) continue;
 
     const ranked = await rankRentalKitesForWind(
@@ -207,11 +229,14 @@ export async function buildPlanBringKit({
       label: `${size}m`,
       referenceWind: ref.wind,
       referenceGust: ref.gust,
-      why: quiverEmpty
-        ? `No kites in quiver — need ~${size}m for ${formatKt(ref.wind)} kt`
-        : !bestAtSize
-          ? `No ${size}m in quiver for ${formatKt(ref.wind)} kt hours`
-          : `Your ${size}m options score low (~${bestAtSize.score}%) at ${formatKt(ref.wind)} kt — consider renting`,
+      why:
+        travelMode === "renting"
+          ? `Best rental options for ~${size}m at ${formatKt(ref.wind)} kt`
+          : quiverEmpty
+            ? `No kites in quiver — need ~${size}m for ${formatKt(ref.wind)} kt`
+            : !bestAtSize
+              ? `No ${size}m in packed bag for ${formatKt(ref.wind)} kt hours`
+              : `Your ${size}m options score low (~${bestAtSize.score}%) at ${formatKt(ref.wind)} kt — consider renting`,
       ranked,
     });
   }
@@ -222,21 +247,37 @@ export async function buildPlanBringKit({
   let headline = "";
   let riskNote = "";
 
-  if (quiverEmpty) {
+  if (travelMode === "renting") {
+    headline = "Renting — picks from the full shop catalog";
+    riskNote =
+      "Hourly timeline shows best catalog matches for your weight and ability. Expand sizes below for ranked models to hire.";
+    if (rentalNeeds.length) {
+      riskNote += ` Focus on: ${rentalNeeds.map((r) => r.label).join(", ")}.`;
+    }
+  } else if (travelMode === "packed" && quiverEmpty) {
+    headline = "No packed kites selected";
+    riskNote = "Tick the kites you brought in Plan setup, or switch to Renting.";
+  } else if (quiverEmpty) {
     headline = "Pack a bag — add kites to Quiver or plan to rent";
     riskNote =
       "No kites in the app yet. Sizes below are what the forecast calls for; expand each for best models to hire.";
+  } else if (travelMode === "packed" && bring.length) {
+    headline = `Packed ${bring.length} kite${bring.length > 1 ? "s" : ""}: ${bring.map((b) => b.name).join(", ")}`;
+    riskNote = gusty
+      ? "Gusty day — your smallest packed kite is worth rigging too. Hourly picks use only what you brought."
+      : "Only kites you ticked as packed are used for recommendations.";
   } else if (bring.length) {
     headline = `Bring ${bring.length} kite${bring.length > 1 ? "s" : ""}: ${bring.map((b) => b.name).join(", ")}`;
     riskNote = gusty
       ? "Gusty day — bringing a smaller kite as well is worth it. Check hourly picks before you rig."
       : "Risk-averse pick: covers forecast hours plus one size up/down where you have them.";
   } else {
-    headline = "Your quiver may not cover this day";
+    headline =
+      travelMode === "packed" ? "Packed bag may not cover this day" : "Your quiver may not cover this day";
     riskNote = "See rental sizes below.";
   }
 
-  if (rentalNeeds.length && !quiverEmpty) {
+  if (rentalNeeds.length && !quiverEmpty && travelMode !== "renting") {
     riskNote += ` Rent or borrow: ${rentalNeeds.map((r) => r.label).join(", ")}.`;
   }
 
@@ -245,9 +286,10 @@ export async function buildPlanBringKit({
     riskNote,
     bring,
     quiverEmpty,
-    hasGap,
+    hasGap: travelMode === "renting" ? rentalNeeds.length > 0 : hasGap,
     rentalNeeds,
     hourly,
+    travelMode,
   };
 }
 

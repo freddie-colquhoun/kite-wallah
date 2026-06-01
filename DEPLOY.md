@@ -157,6 +157,8 @@ When it finishes without errors, refresh your repo page on GitHub — you should
 
 Open that link in Safari/Chrome. You should see **Kite Wallah**.
 
+**Version label:** After each deploy, bump the number in `js/version.js` (e.g. `1.6` → `1.7`), commit, and push. The header shows **Kite Wallah v1.7** so you can confirm the live site updated (hard-refresh if it still shows an old version).
+
 The header may say **“Saved on this device only”** until you finish Part B — that’s normal.
 
 ---

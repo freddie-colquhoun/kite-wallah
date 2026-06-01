@@ -606,7 +606,10 @@ export function getTomorrowDate() {
  * @param {string} spotNotes
  * @param {boolean} showNight
  */
-export async function enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight) {
+/**
+ * @param {import('./plan-travel.js').PlanTravelOptions} [travel]
+ */
+export async function enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight, travel) {
   const skillLimits = getProfileSkillLimits(profile);
 
   for (const day of plan.days) {
@@ -621,6 +624,7 @@ export async function enrichRiderPlan(plan, profile, kites, spot, spotNotes, sho
       scorable,
       rideable,
       limits: skillLimits,
+      travel,
     });
 
     const pickByTime = new Map(day.bringKit.hourly.map((p) => [p.time, p]));

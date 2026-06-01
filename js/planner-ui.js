@@ -25,7 +25,13 @@ import {
 } from "./plan-calendar.js";
 import { getSpot, loadSpots, loadSettings } from "./spots-storage.js";
 import { getProfile, profileToConditions } from "./storage.js";
-import { getRiderKites, migrateProfilesToSharedQuiver } from "./quiver-storage.js";
+import { migrateProfilesToSharedQuiver } from "./quiver-storage.js";
+import {
+  defaultPlanTravelOptions,
+  validatePlanTravel,
+  resolvePlanKitesForRider,
+  resolveCrewPackedKites,
+} from "./plan-travel.js";
 import { allocateKitesForRiders } from "./kite-allocation.js";
 import { formatKt } from "./format.js";
 import {
@@ -119,7 +125,13 @@ function getHourTooltipRows(h) {
   if (h.isDark) rows.push(["Daylight", "After dark"]);
 
   if (h.kitePick) {
-    rows.push(["Kite this hour", formatHourKiteTooltipLine(h.kitePick)]);
+    const travel = getPlanTravelOptionsFromForm();
+    rows.push([
+      "Kite this hour",
+      formatHourKiteTooltipLine(h.kitePick, {
+        travelRenting: travel.enabled && travel.mode === "renting",
+      }),
+    ]);
   } else {
     rows.push([
       "Kite",
@@ -231,6 +243,73 @@ function getAvailabilityFromForm() {
   return { dates, startHour: 0, endHour: 23 };
 }
 
+function getPlanCrewAllocationHint() {
+  const travel = getPlanTravelOptionsFromForm();
+  if (travel.enabled && travel.mode === "renting") {
+    return "Renting mode: each rider gets their own catalog pick (weight-adjusted). No shared-bag split.";
+  }
+  if (travel.enabled && travel.mode === "packed") {
+    return "Packed bag only: assigned by who needs the power (weight + session history), not preference.";
+  }
+  return "Shared quiver: assigned by who needs the power (weight + session history), not who enjoys a kite more.";
+}
+
+/** @returns {import('./plan-travel.js').PlanTravelOptions} */
+function getPlanTravelOptionsFromForm() {
+  const enabled = document.getElementById("plan-travelling")?.checked ?? false;
+  if (!enabled) return defaultPlanTravelOptions();
+
+  const modeInput = document.querySelector('input[name="plan-travel-mode"]:checked');
+  const mode =
+    modeInput?.value === "renting"
+      ? /** @type {'renting'} */ ("renting")
+      : /** @type {'packed'} */ ("packed");
+
+  const packedKiteIds = [...document.querySelectorAll("#plan-travel-kite-list input:checked")].map(
+    (el) => /** @type {HTMLInputElement} */ (el).value
+  );
+
+  return { enabled: true, mode, packedKiteIds };
+}
+
+function syncPlanTravelPanel() {
+  const travelling = document.getElementById("plan-travelling")?.checked ?? false;
+  const panel = document.getElementById("plan-travel-panel");
+  if (!panel) return;
+  panel.hidden = !travelling;
+  panel.classList.toggle("hidden", !travelling);
+
+  const mode = document.querySelector('input[name="plan-travel-mode"]:checked')?.value;
+  const packed = document.getElementById("plan-travel-packed");
+  if (packed) packed.hidden = mode === "renting";
+}
+
+/** @param {AppState} state */
+export function renderPlanTravelKites(state) {
+  const list = document.getElementById("plan-travel-kite-list");
+  if (!list) return;
+  migrateProfilesToSharedQuiver(state);
+  const kites = [...(state.quiver?.kites ?? [])].sort((a, b) => a.size - b.size);
+  const prev = new Set(
+    [...list.querySelectorAll("input:checked")].map((el) => /** @type {HTMLInputElement} */ (el).value)
+  );
+
+  if (!kites.length) {
+    list.innerHTML = `<p class="hint hint-tight">No kites in Quiver — add gear there or choose Renting.</p>`;
+    return;
+  }
+
+  list.innerHTML = kites
+    .map(
+      (k) => `
+    <label class="profile-chip">
+      <input type="checkbox" name="plan-travel-kite" value="${k.id}" ${prev.has(k.id) ? "checked" : ""} />
+      <span>${escapeHtml(k.name)} <small>${k.size}m</small></span>
+    </label>`
+    )
+    .join("");
+}
+
 function applyDayPreset(preset) {
   const el = getPlanCalendarEl();
   if (!el) return;
@@ -246,6 +325,13 @@ export function initPlannerModule(state) {
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
   renderPlanDayPicker(state);
+  renderPlanTravelKites(state);
+  syncPlanTravelPanel();
+
+  document.getElementById("plan-travelling")?.addEventListener("change", syncPlanTravelPanel);
+  document.querySelectorAll('input[name="plan-travel-mode"]').forEach((el) => {
+    el.addEventListener("change", syncPlanTravelPanel);
+  });
 
   document.querySelectorAll("[data-plan-day-preset]").forEach((btn) => {
     btn.addEventListener("click", () => applyDayPreset(btn.dataset.planDayPreset));
@@ -271,6 +357,7 @@ async function recomputePlansFromCache() {
   const ctx = lastPlanContext;
   if (!ctx) return;
   const showNight = document.getElementById("plan-show-night")?.checked ?? false;
+  const travel = getPlanTravelOptionsFromForm();
   await loadCatalog();
 
   const plans = (
@@ -279,6 +366,7 @@ async function recomputePlansFromCache() {
         const profile = getProfile(ctx.state, id);
         if (!profile) return null;
         migrateProfilesToSharedQuiver(ctx.state);
+        const kites = await resolvePlanKitesForRider(ctx.state, travel, profile);
         const plan = planRiderSessions({
           profile,
           spot: ctx.spot,
@@ -288,22 +376,15 @@ async function recomputePlansFromCache() {
           spotNotes: ctx.spotNotes,
           showNight,
           sunByDate: ctx.sunByDate,
-          kites: getRiderKites(ctx.state, profile),
+          kites,
         });
-        return enrichRiderPlan(
-          plan,
-          profile,
-          getRiderKites(ctx.state, profile),
-          ctx.spot,
-          ctx.spotNotes,
-          showNight
-        );
+        return enrichRiderPlan(plan, profile, kites, ctx.spot, ctx.spotNotes, showNight, travel);
       })
     )
   ).filter(Boolean);
 
   lastPlans = plans;
-  const dayAllocations = buildPlanDayAllocations(plans, ctx.state, ctx.spot, ctx.spotNotes);
+  const dayAllocations = buildPlanDayAllocations(plans, ctx.state, ctx.spot, ctx.spotNotes, travel);
 
   mountPlanResults(
     renderPlanResultsHtml(plans, ctx.spot, showNight, ctx.state, dayAllocations),
@@ -335,6 +416,14 @@ async function runPlan(state) {
     alert("Select at least one day you might kite.");
     return;
   }
+
+  const travel = getPlanTravelOptionsFromForm();
+  const travelErr = validatePlanTravel(travel, state);
+  if (travelErr) {
+    alert(travelErr);
+    return;
+  }
+
   const spot = getSpot(loadSpots(), spotId);
   if (!spot) return;
 
@@ -374,7 +463,7 @@ async function runPlan(state) {
           const profile = getProfile(state, id);
           if (!profile) return null;
           migrateProfilesToSharedQuiver(state);
-          const kites = getRiderKites(state, profile);
+          const kites = await resolvePlanKitesForRider(state, travel, profile);
           const plan = planRiderSessions({
             profile,
             spot,
@@ -386,7 +475,7 @@ async function runPlan(state) {
             sunByDate,
             kites,
           });
-          return enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight);
+          return enrichRiderPlan(plan, profile, kites, spot, spotNotes, showNight, travel);
         })
       )
     ).filter(Boolean);
@@ -396,7 +485,12 @@ async function runPlan(state) {
         ? ` · Tide rule: ${spot.tideWindowHours}h around ${spot.tideAccessRule === "within_low" ? "low" : "high"}`
         : "";
 
-    status.textContent = `${wind.source}${showNight ? " · incl. night" : ""}${tideRule}`;
+    const travelNote = travel.enabled
+      ? travel.mode === "renting"
+        ? " · travelling · renting"
+        : ` · travelling · ${travel.packedKiteIds.length} packed`
+      : "";
+    status.textContent = `${wind.source}${showNight ? " · incl. night" : ""}${travelNote}${tideRule}`;
 
     lastPlanContext = {
       state,
@@ -407,9 +501,10 @@ async function runPlan(state) {
       availability,
       spotNotes,
       sunByDate,
+      travel,
     };
 
-    const dayAllocations = buildPlanDayAllocations(plans, state, spot, spotNotes);
+    const dayAllocations = buildPlanDayAllocations(plans, state, spot, spotNotes, travel);
 
     mountPlanResults(
       renderPlanResultsHtml(plans, spot, showNight, state, dayAllocations),
@@ -431,13 +526,16 @@ async function runPlan(state) {
  * @param {string} spotNotes
  * @returns {Map<string, import('./kite-allocation.js').GroupKiteAllocation>}
  */
-function buildPlanDayAllocations(plans, state, spot, spotNotes) {
+function buildPlanDayAllocations(plans, state, spot, spotNotes, travel = defaultPlanTravelOptions()) {
   /** @type {Map<string, import('./kite-allocation.js').GroupKiteAllocation>} */
   const byDate = new Map();
   if (plans.length < 2) return byDate;
+  if (travel.enabled && travel.mode === "renting") return byDate;
 
   migrateProfilesToSharedQuiver(state);
-  const allKites = state.quiver?.kites ?? [];
+  const allKites = travel.enabled
+    ? resolveCrewPackedKites(state, travel)
+    : (state.quiver?.kites ?? []);
   const notes = [spotNotes, spot.localKnowledge].filter(Boolean).join(". ");
   const dates = [...new Set(plans.flatMap((p) => p.days.map((d) => d.date)))];
 
@@ -533,6 +631,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             <div class="plan-day-hero-body">
               ${title.prefix ? `<p class="plan-day-hero-prefix">${escapeHtml(title.prefix)}</p>` : ""}
               <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
+              <p class="plan-day-spot-name">${escapeHtml(spotName)}</p>
               <p class="plan-day-hero-window">
                 Ride <strong>${escapeHtml(rec.windowLabel)}</strong>
                 · avg <strong>${formatKt(rec.avgWind)}</strong> kt
@@ -556,6 +655,7 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
         : `<div class="plan-day-hero plan-day-hero--${crewVerdict}">
             <div class="plan-day-hero-body">
               <h4 class="plan-day-hero-date">${escapeHtml(title.primary)}</h4>
+              <p class="plan-day-spot-name">${escapeHtml(spotName)}</p>
               <p class="plan-day-hero-advice">No solid powered window for the crew this day.</p>
               <p class="plan-crew-rider-verdicts">${riderVerdictSummary}</p>
             </div>
@@ -601,13 +701,10 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
             </header>
             ${
               recR
-                ? `<p class="plan-rider-kite-line"><strong>${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</strong>${assign ? ` <span class="plan-rider-fit">(${assign.score}% need-fit)</span>` : ""}</p>
+                ? `<p class="plan-rider-kite-line"><strong>${escapeHtml(assign?.kite?.name ?? recR.kiteName)}</strong>${assign ? ` <span class="plan-rider-fit">${assign.score}% need-fit</span>` : ""}</p>
                 ${assign?.fairnessNote ? `<p class="plan-rider-fairness">${escapeHtml(assign.fairnessNote)}</p>` : ""}
-                ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="hint-tight">Ideal solo: ${escapeHtml(assign.soloPick.name)}</p>` : ""}
-                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
-                <p class="plan-rider-advice">${escapeHtml(cleanCopy(recR.kiteLine))}</p>
-                ${recR.timingNote && recR.timingNote !== sharedTips.find((t) => t.title === "Best time on the water")?.text ? `<p class="plan-rider-timing">${escapeHtml(cleanCopy(recR.timingNote))}</p>` : ""}
-                ${recR.skipNote ? `<p class="plan-day-hero-skip">${escapeHtml(recR.skipNote)}</p>` : ""}`
+                ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="hint-tight plan-rider-solo">Would pick ${escapeHtml(assign.soloPick.name)} if riding alone.</p>` : ""}
+                ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}`
                 : `<p class="hint-tight">Not worth rigging for this rider today.</p>`
             }
             ${compareHtml}
@@ -622,26 +719,22 @@ function renderPlanByDay(plans, spotName, showNight, state, spot, dayAllocations
 
       return `<article class="plan-day-card plan-day-card--crew plan-day-card--${crewVerdict}" data-day-date="${escapeHtml(date)}">
         ${heroHtml}
-        ${bringHtml}
         ${timeline}
         ${tidesOnce}
-        <section class="plan-crew-riders">
-          <h4 class="plan-crew-riders-title">Kite for each rider</h4>
-          <p class="hint hint-tight plan-crew-fair-hint">Shared quiver: assigned by who <strong>needs</strong> the power (weight + session history), not who enjoys a kite more.</p>
+        <section class="plan-crew-riders" aria-label="Kite assignment per rider">
+          <div class="plan-crew-riders-head">
+            <h4 class="plan-crew-riders-title">Who flies what</h4>
+            <p class="hint hint-tight plan-crew-fair-hint">${escapeHtml(getPlanCrewAllocationHint())}</p>
+          </div>
           <div class="plan-crew-riders-grid">${ridersHtml}</div>
         </section>
         ${tipsHtml}
+        ${bringHtml}
       </article>`;
     })
     .join("");
 
-  return `<section class="plan-result plan-result--crew">
-    <header class="plan-result-head">
-      <h3>${plans.length} riders</h3>
-      <span class="plan-result-spot">${escapeHtml(spotName)}</span>
-    </header>
-    <div class="plan-days-stack">${daysHtml}</div>
-  </section>`;
+  return `<div class="plan-days-stack plan-days-stack--crew">${daysHtml}</div>`;
 }
 
 function renderPlanResultsHtml(plans, spot, showNight, state, dayAllocations) {
@@ -667,7 +760,9 @@ function renderBringKitHtml(kit, dayDate) {
             )
             .join("")}
         </ul>`
-      : `<p class="hint-tight">No quiver kite covers the forecast — see rental sizes below.</p>`;
+      : kit.travelMode === "renting"
+        ? `<p class="hint-tight">Hourly timeline shows catalog picks — expand rental sizes for ranked shop options.</p>`
+        : `<p class="hint-tight">No quiver kite covers the forecast — see rental sizes below.</p>`;
 
   const rentalHtml = kit.rentalNeeds.length
     ? `<div class="plan-rental-needs">
@@ -704,8 +799,10 @@ function renderBringKitHtml(kit, dayDate) {
       ? `<p class="plan-bring-warn">Gap in your quiver for this forecast. Rent or borrow the sizes below.</p>`
       : "";
 
+  const sectionTitle = kit.travelMode === "renting" ? "What to rent" : "What to bring";
+
   return `<section class="plan-bring-kit ${kit.hasGap ? "plan-bring-kit--gap" : ""}">
-    <h4 class="plan-bring-title">What to bring</h4>
+    <h4 class="plan-bring-title">${escapeHtml(sectionTitle)}</h4>
     <p class="plan-bring-headline">${escapeHtml(kit.headline)}</p>
     <p class="plan-bring-risk">${escapeHtml(kit.riskNote)}</p>
     ${warn}
@@ -807,11 +904,11 @@ function renderRiderPlan(plan, spotName, showNight, state, dayAllocations = new 
       return `
         <article class="plan-day-card plan-day-card--${verdict}" data-day-date="${escapeHtml(day.date)}">
           ${heroHtml}
-          ${bringHtml}
           ${timeline}
           ${tidesOnce}
           ${compareHtml}
           ${tipsHtml}
+          ${bringHtml}
         </article>`;
     })
     .join("");
@@ -1151,6 +1248,7 @@ function wirePlanChat(state, plans, spot) {
 export function refreshPlanUi(state) {
   renderPlanSpotSelect(state);
   renderPlanProfileSelector(state);
+  renderPlanTravelKites(state);
   const keyEl = document.getElementById("plan-openai-key");
   if (keyEl && !keyEl.dataset.loaded) {
     keyEl.value = getOpenAiApiKey();

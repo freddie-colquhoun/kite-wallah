@@ -67,6 +67,10 @@ export function buildSharedDayTips(day, spot, spotNotes) {
     tips.unshift({ title: timing.title, text: cleanCopy(timing.text) });
   }
 
+  if (rec.skipNote) {
+    tips.push({ title: "When to rig", text: cleanCopy(rec.skipNote) });
+  }
+
   const gust = rec.peakGust != null ? rec.peakGust - rec.avgWind : 0;
   if (gust >= 10) {
     tips.unshift({
@@ -111,10 +115,14 @@ export function mergeCrewBringKit(kits) {
   const hasGap = valid.some((k) => k.hasGap);
   const bring = [...bringMap.values()].sort((a, b) => a.size - b.size);
 
+  const names = bring.map((b) => b.name).join(", ");
   return {
-    headline: `Crew bag: ${bring.length} kite${bring.length === 1 ? "" : "s"} cover all riders`,
-    riskNote:
-      "Pack the union of what each rider needs. Per-rider assignments may share sizes — see who flies which kite below.",
+    headline: bring.length
+      ? `Pack ${bring.length} kite${bring.length === 1 ? "" : "s"}: ${names}`
+      : "Nothing to pack from the forecast",
+    riskNote: hasGap
+      ? "Rent or borrow any sizes listed below if the bag does not cover everyone."
+      : "Covers the crew for this day based on the picks above.",
     bring,
     quiverEmpty: valid.every((k) => k.quiverEmpty),
     hasGap,

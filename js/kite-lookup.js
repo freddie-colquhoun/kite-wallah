@@ -144,6 +144,31 @@ export async function fetchKiteSpecs(brandInput, modelInput, size, rider = {}) {
  * @param {number} size
  * @param {{ weight?: number, sex?: string }} [rider]
  */
+/** All sizes present in the catalog (call after loadCatalog()). */
+export function getCatalogSizes() {
+  if (!catalog) return [];
+  /** @type {Set<number>} */
+  const sizes = new Set();
+  for (const models of Object.values(catalog.brands)) {
+    for (const spec of Object.values(models)) {
+      for (const sizeKey of Object.keys(spec.sizes)) {
+        sizes.add(Number(sizeKey));
+      }
+    }
+  }
+  return [...sizes];
+}
+
+/**
+ * Full catalog as plan kites (rental / travel). Call after loadCatalog().
+ * @param {{ weight?: number, sex?: string }} [rider]
+ */
+export function listAllCatalogKites(rider = {}) {
+  return getCatalogSizes()
+    .sort((a, b) => a - b)
+    .flatMap((size) => listCatalogKitesAtSize(size, rider));
+}
+
 export function listCatalogKitesAtSize(size, rider = {}) {
   if (!catalog) return [];
   const sizeKey = String(size);

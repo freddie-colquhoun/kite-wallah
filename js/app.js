@@ -1,6 +1,8 @@
 import { analyze, BOARD_TYPE_LABELS } from "./engine.js";
 import {
   loadState,
+  readLocalState,
+  installState,
   saveState,
   getProfile,
   upsertProfile,
@@ -9,6 +11,7 @@ import {
   profileToConditions,
   profileToQuiver,
 } from "./storage.js";
+import { readLocalSpots, readLocalSettings, installSpots, installSettings } from "./spots-storage.js";
 import {
   getRiderKites,
   getRiderBoards,
@@ -669,6 +672,19 @@ function wireProfileEditorEvents(/** @type {RiderProfile} */ profile) {
 
 // --- Init ---
 
+/** Fallback when cloud bootstrap hangs or throws — still show the app. */
+function bootstrapFromLocalCache() {
+  installState(readLocalState());
+  installSpots(readLocalSpots());
+  installSettings(readLocalSettings());
+  return loadState();
+}
+
+function setBootStatusMessage(text) {
+  const el = document.getElementById("sync-status");
+  if (el) el.textContent = text;
+}
+
 function refreshAllFromState() {
   migrateProfilesToSharedQuiver(state);
   renderProfileSelector();
@@ -724,9 +740,28 @@ function startApp() {
 
 void (async () => {
   const loading = document.getElementById("app-loading");
-  const boot = await bootstrapData();
-  if (loading) loading.classList.add("hidden");
-  if (!boot.ok || !boot.state) return;
-  state = boot.state;
+  /** @type {import('./storage.js').AppState} */
+  let bootState = bootstrapFromLocalCache();
+
+  try {
+    const boot = await Promise.race([
+      bootstrapData(),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Startup timed out after 20s")), 20_000);
+      }),
+    ]);
+    if (boot.state) bootState = boot.state;
+    if (!boot.ok) {
+      setBootStatusMessage("Started with saved data on this device.");
+    }
+  } catch (err) {
+    console.warn("App bootstrap failed", err);
+    bootState = bootstrapFromLocalCache();
+    setBootStatusMessage("Could not reach shared data — using this device. Tap Retry in the banner if shown.");
+  } finally {
+    loading?.classList.add("hidden");
+  }
+
+  state = bootState;
   startApp();
 })();

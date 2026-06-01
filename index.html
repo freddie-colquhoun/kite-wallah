@@ -19,7 +19,7 @@
               <span class="logo-emoji">🌊</span>
               <span class="logo-emoji">🏄‍♂️</span>
             </span>
-            <h1>Kite Wallah</h1>
+            <h1>Kite Wallah <span data-app-version class="app-version" title="App version — bump js/version.js when you deploy"></span></h1>
             <p id="sync-status" class="sync-status" aria-live="polite"></p>
           </div>
           <nav class="tabs" role="tablist">
@@ -58,6 +58,31 @@
                   <button type="button" class="preset-pill" data-plan-day-preset="7days">7 days</button>
                 </div>
                 <div id="plan-day-picker"></div>
+              </div>
+
+              <div class="field field-flush plan-travel-field">
+                <label class="check-inline plan-travel-toggle">
+                  <input type="checkbox" id="plan-travelling" />
+                  <span>Travelling</span>
+                </label>
+                <p class="hint hint-tight">Trip mode: only kites you packed, or full rental catalog recommendations.</p>
+                <div id="plan-travel-panel" class="plan-travel-panel hidden" hidden>
+                  <fieldset class="plan-travel-mode">
+                    <legend class="sr-only">Travel gear</legend>
+                    <label class="plan-travel-radio">
+                      <input type="radio" name="plan-travel-mode" value="packed" checked />
+                      <span>We brought kites</span>
+                    </label>
+                    <label class="plan-travel-radio">
+                      <input type="radio" name="plan-travel-mode" value="renting" />
+                      <span>Renting (nothing packed)</span>
+                    </label>
+                  </fieldset>
+                  <div id="plan-travel-packed" class="plan-travel-packed">
+                    <p class="hint hint-tight">Tick every kite in the bag (shared crew quiver).</p>
+                    <div id="plan-travel-kite-list" class="profile-selector plan-travel-kites"></div>
+                  </div>
+                </div>
               </div>
 
               <details class="form-more">
@@ -258,6 +283,7 @@
       </footer>
     </div>
 
+    <script type="module" src="js/apply-version.js"></script>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>

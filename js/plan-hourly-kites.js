@@ -98,10 +98,16 @@ export function buildPlanHourlyKites(profile, kites, spotNotes, waterType, hours
 /**
  * @param {PlanHourKitePick} pick
  */
-export function formatHourKiteTooltipLine(pick) {
+/**
+ * @param {PlanHourKitePick} pick
+ * @param {{ travelRenting?: boolean }} [opts]
+ */
+export function formatHourKiteTooltipLine(pick, opts = {}) {
   if (!pick.kiteName) {
     return pick.fit === "none"
-      ? "No quiver kite fits well — see What to bring"
+      ? opts.travelRenting
+        ? "No strong catalog match — see rental sizes"
+        : "No quiver kite fits well — see What to bring"
       : "Add kites on Quiver tab";
   }
   const gust =
