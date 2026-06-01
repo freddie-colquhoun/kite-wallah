@@ -908,7 +908,7 @@ function renderBringKitHtml(kit, dayDate) {
 
   const warn =
     kit.hasGap && kit.rentalNeeds.length
-      ? `<p class="plan-bring-warn">Gap in your quiver for the main ride window. Rent or borrow the sizes below.</p>`
+      ? `<p class="plan-bring-warn">You may need another size for the main ride window — see rental options below.</p>`
       : "";
 
   const sectionTitle = kit.travelMode === "renting" ? "What to rent" : "What to bring";

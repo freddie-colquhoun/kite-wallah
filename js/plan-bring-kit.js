@@ -125,10 +125,11 @@ export async function buildPlanBringKit({
       pick.kiteSize ??
       inferSizeFromWind(pick.windSpeed, profile.weight, limits);
     const score = pick.score ?? 0;
+    const ownsPickedKite =
+      pick.kiteId != null && quiverById.has(pick.kiteId);
     const quiverWeak =
-      score < MIN_RENTAL_TRIGGER ||
-      !pick.kiteId ||
-      !quiverById.has(pick.kiteId);
+      !ownsPickedKite &&
+      (score < MIN_RENTAL_TRIGGER || !pick.kiteId);
 
     if (quiverWeak) {
       const prev = sizeNeeds.get(needSize);
@@ -190,8 +191,15 @@ export async function buildPlanBringKit({
   const windDir = scorable.find((h) => h.rideable)?.windDirection ?? "W";
 
   for (const [size, ref] of sizeNeeds) {
-    const hasQuiverAtSize = kites.some(
-      (k) => Math.abs(k.size - size) < 0.35 && (travelMode === "renting" || bringIds.has(k.id))
+    const kitesAtSize = kites.filter((k) => Math.abs(k.size - size) < 0.35);
+    const bringingYourSize =
+      travelMode !== "renting" &&
+      kitesAtSize.some((k) => bringIds.has(k.id));
+
+    if (bringingYourSize) continue;
+
+    const hasQuiverAtSize = kitesAtSize.some(
+      (k) => travelMode === "renting" || bringIds.has(k.id)
     );
     const bestAtSize = kites.length
       ? recommendKite(
@@ -203,7 +211,7 @@ export async function buildPlanBringKit({
             windDir,
             waterType
           ),
-          kites.filter((k) => Math.abs(k.size - size) < 0.35),
+          kitesAtSize,
           profile.calibration
         )
       : null;
