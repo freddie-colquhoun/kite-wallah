@@ -331,7 +331,7 @@ function renderOneResult(profile, conditions, analysis, spot, windSnap = null, o
       : kiteAssignment &&
           kiteAssignment.soloPick &&
           kiteAssignment.soloPick.id !== kiteAssignment.kite.id
-        ? `<p class="kite-allocation-note hint-tight">Shared quiver pick (their solo choice was ${escapeHtml(kiteAssignment.soloPick.name)}).</p>`
+        ? `<p class="kite-allocation-note hint-tight">Shared quiver pick (ideal was ${escapeHtml(kiteAssignment.soloPick.name)}).</p>`
         : "";
     const altHtml = kiteRec.alternatives.length
       ? `<details class="result-more action-panel"><summary class="action-panel-summary">Other kites in quiver</summary><ul class="notes-list">${kiteRec.alternatives

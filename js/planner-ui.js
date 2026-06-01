@@ -257,7 +257,7 @@ function getPlanCrewAllocationHint() {
   if (travel.enabled && travel.mode === "packed") {
     return "Packed bag: heaviest rider picks first; lighter riders get smaller kites. See conflict notes if the bag is tight.";
   }
-  return "Shared quiver: heaviest rider picks the largest safe kite left, then the next heaviest, and so on. Rig the kite shown as Fly this on each card.";
+  return "Shared quiver: each rider’s Ideal is their personal best kite at this wind; Fly this is who rigs what after splitting the bag (fewest workable sizes pick first).";
 }
 
 /**
@@ -948,7 +948,7 @@ function renderRiderPlan(plan, spotName, showNight, state, spot, dayAllocations 
                 ${rec.peakGust != null ? ` · gusts to <strong>${formatKt(rec.peakGust)}</strong> kt` : ""}
               </p>
               <p class="plan-day-hero-kite">${escapeHtml(assign?.kite?.name ?? rec.kiteName)}</p>
-              ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="plan-day-hero-kite-note hint-tight">Shared quiver: ${escapeHtml(plan.profileName)} gets this kite (solo pick was ${escapeHtml(assign.soloPick.name)}).</p>` : ""}
+              ${assign?.soloPick && assign.soloPick.id !== assign.kite.id ? `<p class="plan-day-hero-kite-note hint-tight">Shared quiver: ${escapeHtml(plan.profileName)} gets this kite (ideal was ${escapeHtml(assign.soloPick.name)}).</p>` : ""}
               ${unassigned ? `<p class="plan-day-hero-kite-warn">${escapeHtml(unassigned.message)}</p>` : ""}
               <p class="plan-day-hero-advice">${escapeHtml(cleanCopy(rec.kiteLine))}</p>
               ${rec.timingNote ? `<p class="plan-day-hero-timing">${escapeHtml(cleanCopy(rec.timingNote))}</p>` : ""}

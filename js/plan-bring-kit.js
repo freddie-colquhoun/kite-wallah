@@ -95,6 +95,8 @@ export async function buildPlanBringKit({
 
   /** @type {Set<string>} */
   const bringIds = new Set();
+  /** @type {Set<string>} */
+  const insuranceBringIds = new Set();
   /** @type {Map<number, { wind: number, gust: number|null, score: number }>} */
   const sizeNeeds = new Map();
 
@@ -115,7 +117,7 @@ export async function buildPlanBringKit({
     if (pick.kiteId && pick.score != null && pick.score >= MIN_QUIVER_FIT - 8) {
       bringIds.add(pick.kiteId);
       const k = quiverById.get(pick.kiteId);
-      if (k) addAdjacentSizes(bringIds, k.size, kites);
+      if (k) addAdjacentSizes(insuranceBringIds, k.size, kites);
     }
 
     const needSize =
@@ -151,8 +153,12 @@ export async function buildPlanBringKit({
     );
     if (maxPick?.kiteId) {
       const k = quiverById.get(maxPick.kiteId);
-      if (k) addAdjacentSizes(bringIds, k.size, kites);
+      if (k) addAdjacentSizes(insuranceBringIds, k.size, kites);
     }
+  }
+
+  for (const id of insuranceBringIds) {
+    if (!bringIds.has(id)) bringIds.add(id);
   }
 
   const bring =
@@ -162,15 +168,21 @@ export async function buildPlanBringKit({
           .map((id) => quiverById.get(id))
           .filter(Boolean)
           .sort((a, b) => a.size - b.size)
-          .map((k) => ({
-            id: k.id,
-            name: k.name,
-            size: k.size,
-            note:
-              travelMode === "packed"
-                ? "Packed · main ride window"
-                : "Main ride window",
-          }));
+          .map((k) => {
+            const isInsurance = insuranceBringIds.has(k.id) && !primaryBringNote(k.id, hourly, mainWindowTimes);
+            return {
+              id: k.id,
+              name: k.name,
+              size: k.size,
+              note: isInsurance
+                ? gusty
+                  ? "Gust backup · not assigned to a rider"
+                  : "Extra size · lulls or gusts"
+                : travelMode === "packed"
+                  ? "Packed · main ride window"
+                  : "Main ride window",
+            };
+          });
 
   /** @type {PlanRentalNeed[]} */
   const rentalNeeds = [];
@@ -280,19 +292,28 @@ export async function buildPlanBringKit({
 }
 
 /**
- * @param {Set<string>} bringIds
+ * Neighbour sizes only (not the centre kite — that is already a primary pick).
+ * @param {Set<string>} insuranceIds
  * @param {number} centerSize
  * @param {Kite[]} kites
- * @param {boolean} [smallerBias]
  */
-function addAdjacentSizes(bringIds, centerSize, kites, smallerBias = false) {
+function addAdjacentSizes(insuranceIds, centerSize, kites) {
   const sorted = [...kites].sort((a, b) => a.size - b.size);
   const idx = sorted.findIndex((k) => Math.abs(k.size - centerSize) < 0.35);
   if (idx < 0) return;
-  bringIds.add(sorted[idx].id);
-  if (sorted[idx - 1]) bringIds.add(sorted[idx - 1].id);
-  if (sorted[idx + 1]) bringIds.add(sorted[idx + 1].id);
-  if (smallerBias && sorted[idx - 2]) bringIds.add(sorted[idx - 2].id);
+  if (sorted[idx - 1]) insuranceIds.add(sorted[idx - 1].id);
+  if (sorted[idx + 1]) insuranceIds.add(sorted[idx + 1].id);
+}
+
+/**
+ * @param {string} kiteId
+ * @param {PlanHourKitePick[]} hourly
+ * @param {Set<string>} mainWindowTimes
+ */
+function primaryBringNote(kiteId, hourly, mainWindowTimes) {
+  return hourly.some(
+    (p) => mainWindowTimes.has(p.time) && p.kiteId === kiteId && (p.score ?? 0) >= MIN_QUIVER_FIT - 8
+  );
 }
 
 /**

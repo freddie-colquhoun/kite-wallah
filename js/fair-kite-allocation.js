@@ -1,12 +1,11 @@
 /**
  * Shared-quiver allocation for crew Plan / Now.
  *
- * Rules (in order):
- * 1. Sort riders by weight (kg) descending — ability never changes queue order.
- * 2. Score every bag kite with scoreKiteForConditions (same as solo recommendKite).
- * 3. Each turn: pick largest SAFE unused kite; heaviest must be ≥ power target − 0.5 m.
- * 4. Assign if safe; rent only when no safe kite remains.
- * 5. UI: need-fit < 45% = amber "Fly this"; solo ideal shown when different.
+ * Flow:
+ * 1. Score each rider × each kite (scoreKiteForConditions — same as recommendKite / Ideal).
+ * 2. Sort pick order: fewest workable kites → highest session min-size → weight tiebreak.
+ * 3. Each turn: largest SAFE unused kite; first picker also meets power target − 0.5 m.
+ * 4. Rent only when no safe kite remains.
  */
 
 import {
@@ -126,6 +125,13 @@ function isKiteSafeForRider(rider, row) {
   return true;
 }
 
+/** @param {RiderAllocInput & { scored: ScoredRow[] }} r */
+function countViableKitesForRider(r) {
+  return r.scored.filter(
+    (s) => s.need >= MIN_SUITABLE_SCORE && isKiteSafeForRider(r, s)
+  ).length;
+}
+
 /** @param {RiderAllocInput & { idealSize?: number, minAdequate?: number|null, solo?: ReturnType<typeof recommendKite>|null, calibration?: CalibrationEntry[] }} r */
 function targetPowerSizeForRider(r) {
   const weight = r.conditions.riderWeight ?? 75;
@@ -137,23 +143,22 @@ function targetPowerSizeForRider(r) {
   const cal = getCalibrationAtWind(wind, r.calibration ?? []);
   if (cal.preferredSize != null) target = Math.max(target, cal.preferredSize);
 
-  const soloSize = r.solo?.kite?.size;
-  if (soloSize != null && (r.solo?.score ?? 0) >= 40 && soloSize >= target - 0.25) {
-    target = Math.max(target, soloSize);
+  const idealSize = r.solo?.kite?.size;
+  if (idealSize != null && (r.solo?.score ?? 0) >= 40 && idealSize >= target - 0.25) {
+    target = Math.max(target, idealSize);
   }
 
   return Math.round(target * 2) / 2;
 }
 
 /**
- * Largest safe kite in pool; heaviest also respects power target.
  * @param {ScoredRow[]} pool
- * @param {boolean} isHeaviest
+ * @param {boolean} isFirstPicker
  * @param {number} powerTarget
  */
-function pickBestFromPool(pool, isHeaviest, powerTarget) {
+function pickBestFromPool(pool, isFirstPicker, powerTarget) {
   let candidates = pool;
-  if (isHeaviest) {
+  if (isFirstPicker) {
     const meets = pool.filter((s) => s.kite.size >= powerTarget - 0.5);
     candidates = meets.length ? meets : pool;
   }
@@ -161,7 +166,7 @@ function pickBestFromPool(pool, isHeaviest, powerTarget) {
   return (
     [...candidates].sort((a, b) => {
       if (b.kite.size !== a.kite.size) return b.kite.size - a.kite.size;
-      if (isHeaviest) {
+      if (isFirstPicker) {
         const gapA = Math.abs(a.kite.size - powerTarget);
         const gapB = Math.abs(b.kite.size - powerTarget);
         if (gapA !== gapB) return gapA - gapB;
@@ -203,19 +208,33 @@ function scoreRiderAgainstAllKites(rider, allKites) {
     solo,
     minAdequate,
     idealSize: idealKiteSizeForWind(rider.conditions.windSpeed, weight),
+    viableCount: 0,
   };
 }
 
-/** @param {RiderAllocInput & ReturnType<typeof scoreRiderAgainstAllKites>} r @param {Set<string>} usedIds @param {boolean} isHeaviest */
-function pickKiteForSharedQuiver(r, usedIds, isHeaviest) {
+/** @param {RiderAllocInput & ReturnType<typeof scoreRiderAgainstAllKites>} r @param {Set<string>} usedIds @param {boolean} isFirstPicker */
+function pickKiteForSharedQuiver(r, usedIds, isFirstPicker) {
   const available = r.scored.filter((s) => !usedIds.has(s.kite.id));
   const safe = available.filter((s) => isKiteSafeForRider(r, s));
   if (!safe.length) return null;
-  return pickBestFromPool(safe, isHeaviest, targetPowerSizeForRider(r));
+  return pickBestFromPool(safe, isFirstPicker, targetPowerSizeForRider(r));
 }
 
-function sortRidersByWeight(riders) {
-  return [...riders].sort((a, b) => {
+/**
+ * Pick order: fewest workable kites → highest session min-size need → weight.
+ * @param {Array<RiderAllocInput & ReturnType<typeof scoreRiderAgainstAllKites>>} riders
+ */
+function sortRidersForAllocation(riders) {
+  const enriched = riders.map((r) => ({
+    ...r,
+    viableCount: countViableKitesForRider(r),
+  }));
+
+  return enriched.sort((a, b) => {
+    if (a.viableCount !== b.viableCount) return a.viableCount - b.viableCount;
+    const minA = a.minAdequate ?? 0;
+    const minB = b.minAdequate ?? 0;
+    if (minB !== minA) return minB - minA;
     const weightA = Number(a.conditions.riderWeight) || 75;
     const weightB = Number(b.conditions.riderWeight) || 75;
     if (weightB !== weightA) return weightB - weightA;
@@ -228,7 +247,35 @@ function formatCrewKitLine(assignments) {
   return assignments.map((a) => `${a.name} → ${a.kite.name}`).join(" · ");
 }
 
-function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions) {
+/**
+ * @param {KiteAssignment} holder
+ * @param {KiteAssignment} viewer
+ */
+function explainIdealTakenBy(holder, viewer) {
+  const holderWeight = holder.riderWeight ?? 75;
+  const viewerWeight = viewer.riderWeight ?? 75;
+  const holderFewer =
+    holder.viableCount != null &&
+    viewer.viableCount != null &&
+    holder.viableCount < viewer.viableCount;
+  const holderEarlier =
+    holder.pickOrder != null &&
+    viewer.pickOrder != null &&
+    holder.pickOrder < viewer.pickOrder;
+
+  if (holderFewer) {
+    return `${holder.name} flies it — fewer kites in the bag worked for them at this wind`;
+  }
+  if (holderEarlier && holderWeight <= viewerWeight) {
+    return `${holder.name} flies it — picked earlier when splitting the shared bag`;
+  }
+  if (holderWeight > viewerWeight) {
+    return `${holder.name} flies it — picked before you when splitting the bag`;
+  }
+  return `${holder.name} flies it — picked earlier when splitting the shared bag`;
+}
+
+function buildFairnessNote(rider, assigned, idealPick, minAdequate, conditions) {
   const wind = formatKt(conditions.windSpeed);
   const parts = [];
 
@@ -238,9 +285,9 @@ function buildFairnessNote(rider, assigned, soloPick, minAdequate, conditions) {
     );
   }
 
-  if (soloPick && soloPick.id !== assigned.id) {
+  if (idealPick && idealPick.id !== assigned.id) {
     parts.push(
-      `Solo pick was ${soloPick.name}; ${assigned.name} is the best safe kite left in the bag for this wind.`
+      `Ideal was ${idealPick.name}; ${assigned.name} is the best safe kite left in the bag for this wind.`
     );
   }
 
@@ -325,7 +372,7 @@ function computeRentSize(r, poorFitPick = null) {
 }
 
 /** @param {UnassignedRider[]} unassigned @param {KiteAssignment[]} assignments */
-function linkSoloKitesTakenByOthers(unassigned, assignments) {
+function linkIdealKitesTakenByOthers(unassigned, assignments) {
   for (const u of unassigned) {
     if (!u.soloPick) continue;
     const holder = assignments.find((a) => a.kite.id === u.soloPick.id);
@@ -348,7 +395,7 @@ export function buildRiderKiteDisplayHtml(
   windKt = null,
   crewAssignments = []
 ) {
-  const solo = assign?.soloPick ?? unassigned?.soloPick ?? null;
+  const ideal = assign?.soloPick ?? unassigned?.soloPick ?? null;
   const windLabel = windKt != null ? formatKt(windKt) : null;
   const kitLine =
     crewAssignments.length > 0 ? formatCrewKitLine(crewAssignments) : "";
@@ -361,15 +408,15 @@ export function buildRiderKiteDisplayHtml(
       ? `<p class="plan-rider-kite-fly-sub hint-tight">Best safe kite left in the bag — not a perfect chart match.</p>`
       : "";
 
-    let soloIdealHtml = "";
-    if (solo && solo.id !== assign.kite.id) {
-      const holder = crewAssignments.find((a) => a.kite.id === solo.id);
+    let idealHtml = "";
+    if (ideal && ideal.id !== assign.kite.id) {
+      const holder = crewAssignments.find((a) => a.kite.id === ideal.id);
       const gap = holder
-        ? ` (${escapeHtml(holder.name)} flies it — heaviest riders pick first)`
-        : solo.size > assign.kite.size + 0.25
-          ? " (larger kite went to a heavier rider)"
+        ? ` (${explainIdealTakenBy(holder, assign)})`
+        : ideal.size > assign.kite.size + 0.25
+          ? " (larger size went to another rider)"
           : "";
-      soloIdealHtml = `<p class="plan-rider-kite-solo-ideal hint-tight">Solo ideal: ${escapeHtml(solo.name)}${gap}</p>`;
+      idealHtml = `<p class="plan-rider-kite-solo-ideal hint-tight">Ideal: ${escapeHtml(ideal.name)}${gap}</p>`;
     }
 
     return {
@@ -377,16 +424,16 @@ export function buildRiderKiteDisplayHtml(
           <span class="plan-rider-kite-fly-label">Fly this</span>
           <strong class="plan-rider-kite-fly-name">${escapeHtml(assignedName)}</strong>
           ${fit}
-        </p>${flySub}${soloIdealHtml}`,
+        </p>${flySub}${idealHtml}`,
       isWarn: compromised,
     };
   }
 
   if (unassigned) {
-    const rentSize = unassigned.rentSize ?? solo?.size;
+    const rentSize = unassigned.rentSize ?? ideal?.size;
     const idealLine =
-      solo && unassigned.idealSize != null && solo.size >= unassigned.idealSize - 0.5 && !unassigned.soloTakenBy
-        ? `<p class="plan-rider-kite-line"><strong>Solo ideal:</strong> ${escapeHtml(solo.name)}</p>`
+      ideal && unassigned.idealSize != null && ideal.size >= unassigned.idealSize - 0.5 && !unassigned.soloTakenBy
+        ? `<p class="plan-rider-kite-line"><strong>Ideal:</strong> ${escapeHtml(ideal.name)}</p>`
         : rentSize
           ? `<p class="plan-rider-kite-line"><strong>Ideal size:</strong> ~${rentSize}m${windLabel ? ` at ${windLabel} kt` : ""}</p>`
           : "";
@@ -428,13 +475,9 @@ export function buildAllocationConflictGuidance(riders, alloc, allKites) {
     riders[0]?.conditions.windSpeed != null
       ? `${formatKt(riders[0].conditions.windSpeed)} kt`
       : "this wind";
-  const byWeight = sortRidersByWeight(riders);
-  const heaviest = byWeight[0];
-  const lightest = byWeight[byWeight.length - 1];
 
   const lines = [
-    `Not enough safe kites for everyone at ${windLabel}. Heaviest rider (by weight) picks first; ability only widens what each person can hold.`,
-    `• ${heaviest?.name ?? "Heaviest"} (~${heaviest?.conditions.riderWeight ?? "?"} kg) before ${lightest?.name ?? "lightest"} (~${lightest?.conditions.riderWeight ?? "?"} kg).`,
+    `Not enough safe kites for everyone at ${windLabel}. Riders with fewer workable sizes in the bag pick first; weight breaks ties.`,
   ];
 
   if (alloc.assignments.length) {
@@ -484,6 +527,7 @@ export function allocateKitesFairly(riders, allKites) {
               soloPick: kiteRec.kite,
               kiteRec,
               fairnessNote: null,
+              riderWeight: r.conditions.riderWeight ?? 75,
             },
           ]
         : [],
@@ -525,7 +569,7 @@ export function allocateKitesFairly(riders, allKites) {
     };
   }
 
-  const queue = sortRidersByWeight(
+  const queue = sortRidersForAllocation(
     rideable.map((r) => ({ ...r, ...scoreRiderAgainstAllKites(r, allKites) }))
   );
 
@@ -539,6 +583,8 @@ export function allocateKitesFairly(riders, allKites) {
     const r = queue[i];
     const available = r.scored.filter((s) => !usedIds.has(s.kite.id));
     const pick = pickKiteForSharedQuiver(r, usedIds, i === 0);
+    const idealKite = r.solo?.kite ?? null;
+    const riderWeight = r.conditions.riderWeight ?? 75;
 
     if (!pick) {
       const poor = available[0] ?? null;
@@ -550,7 +596,7 @@ export function allocateKitesFairly(riders, allKites) {
         name: r.name,
         reason: "shortage",
         message: `${r.name}: ${detail} Rent if nothing else works.`,
-        soloPick: r.solo?.kite ?? null,
+        soloPick: idealKite,
         idealSize: r.idealSize,
         minAdequate: r.minAdequate ?? null,
         rentSize: computeRentSize(r, poor),
@@ -566,19 +612,22 @@ export function allocateKitesFairly(riders, allKites) {
       name: r.name,
       kite: pick.kite,
       score: pick.need,
-      soloPick: r.solo?.kite ?? null,
+      soloPick: idealKite,
       kiteRec: pick.rec,
+      pickOrder: i,
+      viableCount: r.viableCount,
+      riderWeight,
       fairnessNote: buildFairnessNote(
         r,
         pick.kite,
-        r.solo?.kite ?? null,
+        idealKite,
         r.minAdequate ?? null,
         r.conditions
       ),
     });
   }
 
-  linkSoloKitesTakenByOthers(unassigned, assignments);
+  linkIdealKitesTakenByOthers(unassigned, assignments);
 
   const result = {
     assignments,

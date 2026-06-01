@@ -21,7 +21,7 @@ engine.js — scoreKiteForConditions / recommendKite / analyze (canonical scorin
       plan-kite-algorithm.js — day headline kite
       plan-hourly-kites.js — hour cells
       plan-bring-kit.js — bag list
-      fair-kite-allocation.js — crew “who flies what” + Fly this UI
+      fair-kite-allocation.js — crew Ideal + Fly this (constrained-first pick order)
       plan-day-aggregate.js — crew day verdict + mergeCrewBringKit
 ```
 

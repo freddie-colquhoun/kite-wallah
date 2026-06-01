@@ -217,14 +217,24 @@ export function mergeCrewBringKit(kits, dayAlloc = null) {
     }
   }
 
+  const assignedIds = new Set(allocationKites.map((k) => k.id).filter(Boolean));
+
   for (const kite of allocationKites) {
     if (!kite?.id) continue;
-    if (!bringMap.has(kite.id)) {
-      bringMap.set(kite.id, {
-        id: kite.id,
-        name: kite.name,
-        size: kite.size,
-        note: "Who flies what · rig this",
+    bringMap.set(kite.id, {
+      id: kite.id,
+      name: kite.name,
+      size: kite.size,
+      note: "Who flies what · rig this",
+    });
+  }
+
+  for (const [id, item] of bringMap) {
+    if (assignedIds.has(id)) continue;
+    if (/main ride window/i.test(item.note)) {
+      bringMap.set(id, {
+        ...item,
+        note: "Gust backup · not assigned to a rider",
       });
     }
   }

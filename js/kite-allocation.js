@@ -36,6 +36,9 @@ export { MIN_SUITABLE_SCORE };
  * @property {Kite|null} soloPick
  * @property {KiteRecommendation|null} kiteRec
  * @property {string|null} [fairnessNote]
+ * @property {number} [pickOrder] 0 = first to pick from shared bag
+ * @property {number} [viableCount] safe kites scoring ≥ MIN_SUITABLE at pick time
+ * @property {number} [riderWeight] kg — for UI copy when ideal differs from assignment
  */
 
 /**
@@ -175,7 +178,7 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
       const title = kiteDisplayTitle(a.kite);
       const soloNote =
         a.soloPick && a.soloPick.id !== a.kite.id
-          ? ` <span class="kite-allocation-solo">(solo pick was ${escapeHtml(a.soloPick.name)})</span>`
+          ? ` <span class="kite-allocation-solo">(ideal was ${escapeHtml(a.soloPick.name)})</span>`
           : "";
       return `<li><strong>${escapeHtml(a.name)}</strong> → ${escapeHtml(title)} (${a.score}% match)${soloNote}</li>`;
     })
@@ -192,7 +195,7 @@ function renderAllocationBannerHtml(alloc, contextLabel) {
 
   return `<div class="kite-allocation-banner card card-slim">
     <h3 class="kite-allocation-title">Who flies which kite</h3>
-    <p class="hint hint-tight">One kite per person — heavier riders pick from the bag first; lighter riders get smaller sizes.</p>
+    <p class="hint hint-tight">One kite per person — riders with fewer workable sizes pick first; weight breaks ties.</p>
     ${heading}
     ${conflict}
     ${rows ? `<ul class="kite-allocation-list">${rows}</ul>` : ""}
