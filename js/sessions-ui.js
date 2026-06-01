@@ -2,7 +2,12 @@ import { createId } from "./ids.js";
 import { FEELING_LABELS } from "./calibration.js";
 import { getSpot, loadSpots, COMPASS } from "./spots-storage.js";
 import { getProfile, isRiderSexSet, syncRiderGearIdsFromSessions } from "./storage.js";
-import { getRiderKites, getRiderBoards } from "./quiver-storage.js";
+import {
+  getRiderKites,
+  getRiderBoards,
+  formatKiteCanonicalName,
+  formatKiteSessionOptionLabel,
+} from "./quiver-storage.js";
 import {
   buildSessionIso,
   formatSessionDateTimeLine,
@@ -83,7 +88,7 @@ export function renderSessionsPanel(state) {
   main.innerHTML = `
     <div class="card profile-section">
       <h2>Log a session  ·  ${escapeHtml(profile.name)}</h2>
-      <p class="hint hint-tight">Pick a kite from the shared Quiver (or Other size). Plan/Now score every brand in the quiver (charts + model character); logs on this kite count fully, same-size logs on other kites are a light hint only.</p>
+      <p class="hint hint-tight">Pick a kite from the shared Quiver, or log a rented / other kite. Plan/Now score every brand in the quiver; logs on a quiver kite count fully, same-size logs on other kites are a light hint only.</p>
       <form id="sessions-form">
         <div class="field-row field-row-tight">
           <div class="field"><label>Date</label><input type="date" id="sess-date" required /></div>
@@ -118,9 +123,14 @@ export function renderSessionsPanel(state) {
           <div class="field"><label>Direction</label>
             <select id="sess-direction">${COMPASS.map((d) => `<option value="${d}">${d}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Kite</label><select id="sess-kite"><option value="">From quiver…</option><option value="custom">Other size</option></select></div>
+          <div class="field field-kite-select"><label>Kite</label><select id="sess-kite"><option value="">Choose kite…</option></select></div>
         </div>
-        <div class="field hidden" id="sess-custom-wrap"><label>Kite size (m²)</label><input type="number" id="sess-custom-size" min="3" max="21" step="0.5" /></div>
+        <div id="sess-rented-wrap" class="field-row field-row-tight hidden" hidden>
+          <div class="field"><label>Brand</label><input type="text" id="sess-rented-brand" placeholder="e.g. Duotone" autocomplete="off" /></div>
+          <div class="field"><label>Model</label><input type="text" id="sess-rented-model" placeholder="e.g. Evo" autocomplete="off" /></div>
+          <div class="field"><label>Size (m²)</label><input type="number" id="sess-rented-size" min="3" max="21" step="0.5" /></div>
+        </div>
+        <div class="field hidden" id="sess-size-only-wrap" hidden><label>Kite size (m²)</label><input type="number" id="sess-size-only" min="3" max="21" step="0.5" /></div>
         <div class="field-row field-row-tight">
           <div class="field"><label>Board</label><select id="sess-board"><option value=""> · </option></select></div>
           <div class="field"><label>How the kite felt</label>
@@ -165,12 +175,8 @@ export function renderSessionsPanel(state) {
     startEl.value = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
-  document.getElementById("sess-kite")?.addEventListener("change", () => {
-    document.getElementById("sess-custom-wrap")?.classList.toggle(
-      "hidden",
-      document.getElementById("sess-kite")?.value !== "custom"
-    );
-  });
+  document.getElementById("sess-kite")?.addEventListener("change", updateSessionKiteExtraFields);
+  updateSessionKiteExtraFields();
 
   renderSessionsList(profile);
 }
@@ -186,28 +192,48 @@ function populateSessionSpotSelect() {
   if (cur) sel.value = cur;
 }
 
+function updateSessionKiteExtraFields() {
+  const val = document.getElementById("sess-kite")?.value || "";
+  const rented = document.getElementById("sess-rented-wrap");
+  const sizeOnly = document.getElementById("sess-size-only-wrap");
+  const showRented = val === "rented";
+  const showSizeOnly = val === "size-only";
+  if (rented) {
+    rented.hidden = !showRented;
+    rented.classList.toggle("hidden", !showRented);
+  }
+  if (sizeOnly) {
+    sizeOnly.hidden = !showSizeOnly;
+    sizeOnly.classList.toggle("hidden", !showSizeOnly);
+  }
+}
+
 /** @param {RiderProfile} profile */
 function populateSessionKiteSelect(profile) {
   const sel = document.getElementById("sess-kite");
-  if (!sel) return;
-  const state = getState();
-  const kites = getRiderKites(state, profile);
+  if (!sel || !appState) return;
+  const kites = getRiderKites(appState, profile);
+  const quiverOpts = kites
+    .map((k) => {
+      const label = formatKiteSessionOptionLabel(k);
+      return `<option value="${k.id}">${escapeHtml(label)}</option>`;
+    })
+    .join("");
   sel.innerHTML =
-    '<option value="">From quiver…</option>' +
-    kites
-      .map((k) => {
-        const label = k.label ? `${k.label} (${k.name})` : k.name;
-        return `<option value="${k.id}">${escapeHtml(label)}</option>`;
-      })
-      .join("") +
-    '<option value="custom">Other size</option>';
+    '<option value="">Choose kite…</option>' +
+    (quiverOpts
+      ? `<optgroup label="Quiver">${quiverOpts}</optgroup>`
+      : '<option value="" disabled>No kites in Quiver — add some on the Quiver tab</option>') +
+    '<option value="rented">Rented / not in quiver…</option>' +
+    '<option value="size-only">Size only (brand unknown)</option>';
 }
 
 /** @param {RiderProfile} profile */
 function populateSessionBoardSelect(profile) {
   const sel = document.getElementById("sess-board");
   if (!sel) return;
-  const boards = getRiderBoards(getState(), profile);
+  if (!appState) return;
+  const boards = getRiderBoards(appState, profile);
   sel.innerHTML =
     '<option value="">-</option>' +
     boards.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join("");
@@ -281,16 +307,31 @@ function handleSessionSubmit(state) {
 
   const val = document.getElementById("sess-kite")?.value;
   let kiteSize, kiteName, kiteId = null;
-  if (val === "custom") {
-    kiteSize = Number(document.getElementById("sess-custom-size")?.value);
+  if (!val) {
+    alert("Choose a kite from the quiver, rented, or size-only.");
+    return;
+  }
+  if (val === "rented") {
+    const brand = document.getElementById("sess-rented-brand")?.value.trim() || "";
+    const model = document.getElementById("sess-rented-model")?.value.trim() || "";
+    kiteSize = Number(document.getElementById("sess-rented-size")?.value);
+    if (!brand || !model || !kiteSize) {
+      alert("Enter brand, model, and size for the rented kite.");
+      return;
+    }
+    kiteName = formatKiteCanonicalName(brand, model, kiteSize);
+  } else if (val === "size-only") {
+    kiteSize = Number(document.getElementById("sess-size-only")?.value);
     kiteName = `${kiteSize}m`;
-    if (!kiteSize) return;
-  } else if (!val) return;
-  else {
+    if (!kiteSize) {
+      alert("Enter the kite size (m²).");
+      return;
+    }
+  } else {
     const k = getRiderKites(state, profile).find((x) => x.id === val);
     if (!k) return;
     kiteSize = k.size;
-    kiteName = k.name;
+    kiteName = formatKiteSessionOptionLabel(k);
     kiteId = k.id;
   }
 
@@ -361,6 +402,6 @@ function handleSessionSubmit(state) {
   form?.reset();
   const dateEl = document.getElementById("sess-date");
   if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
-  document.getElementById("sess-custom-wrap")?.classList.add("hidden");
+  updateSessionKiteExtraFields();
   renderSessionsPanel(state);
 }

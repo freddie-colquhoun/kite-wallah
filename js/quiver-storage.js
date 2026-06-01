@@ -252,3 +252,16 @@ export function kiteDisplayTitle(kite) {
   if (k.label) return k.label;
   return k.name || formatKiteCanonicalName(k.brand, k.model, k.size);
 }
+
+/** Dropdown label for session logging: brand · model · size · year · SLS · colour */
+export function formatKiteSessionOptionLabel(kite) {
+  const k = normalizeKite(kite);
+  const main = formatKiteCanonicalName(k.brand, k.model, k.size);
+  const meta = [
+    k.yearManufactured ? String(k.yearManufactured) : "",
+    k.isSls ? "SLS" : "",
+    k.color || "",
+  ].filter(Boolean);
+  const line = meta.length ? `${main} · ${meta.join(" · ")}` : main;
+  return k.label ? `${k.label} — ${line}` : line;
+}
